@@ -1,6 +1,11 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // if we add new fields, give them default values when deserializing old state
 use crossbeam::channel;
+use std::borrow::{Borrow, BorrowMut};
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread;
+use std::time::Duration;
+use windows::Win32::UI::Shell::SHARE_ROLE_READER;
 
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
@@ -17,9 +22,13 @@ pub enum TrayMessage {
 pub struct App {
     // Example stuff:
     label: String,
+    _tray_start: bool,
+    _tray_icon: TrayIcon<TrayMessage>,
+    _tray_icon_inner: Arc<RwLock<TrayIconInner>>,
+}
+struct TrayIconInner {
     is_close: bool,
     is_visible: bool,
-    _tray_icon: TrayIcon<TrayMessage>,
     tray_receiver: channel::Receiver<TrayMessage>,
 }
 
@@ -37,41 +46,82 @@ impl App {
         // Note that you must enable the `persistence` feature for this to work.
         // if let Some(storage) = cc.storage {
         //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+
         // }
 
         Self {
             label: "Label Stuff".to_string(),
-            is_close: false,
-            is_visible: false,
+            _tray_start: false,
+            // is_close: false,
+            // is_visible: false,
             _tray_icon: tray_icon,
-            tray_receiver: tray_receiver,
+            _tray_icon_inner: Arc::new(RwLock::new(TrayIconInner {
+                is_close: false,
+                is_visible: false,
+                tray_receiver: tray_receiver,
+            })),
         }
     }
-
     fn set_visible(&mut self, visible: bool) {
-        self.is_visible = visible
+        // self._tray_icon_inner.read().unwrap().is_visible = visible;
+        self._tray_icon_inner.write().unwrap().is_visible = visible;
+        // self.is_visible = visible
+    }
+    fn set_close(&mut self, close: bool) {
+        self._tray_icon_inner.write().unwrap().is_close = close;
+        // self.is_close = close
+    }
+    fn get_visible(&self) -> bool {
+        self._tray_icon_inner.read().unwrap().is_visible
+    }
+    fn get_close(&self) -> bool {
+        self._tray_icon_inner.read().unwrap().is_close
     }
 
-    fn tray_message(&mut self, _frame: &mut eframe::Frame) {
-        // let _ = self._tray_icon;
+    fn tray_monitor(&mut self, ctx: egui::Context) {
+        let tray = self._tray_icon_inner.clone();
 
-        while let Ok(message) = self.tray_receiver.try_recv() {
-            match message {
-                TrayMessage::SettingsShow => self.set_visible(true),
-                TrayMessage::Exit => {
-                    self.is_close = true;
-                    _frame.close();
-                }
-                TrayMessage::OnIconDoubleClick => {
-                    println!("OnIconDoubleClick!");
-                    self.set_visible(true);
-                }
-                TrayMessage::OnIconClick => {
-                    println!("OnIconClick!");
+        thread::spawn(move || {
+            let receiver = tray.read().unwrap().tray_receiver.clone();
+            while let Ok(message) = receiver.recv() {
+                // let mut lock = this_share.lock().unwrap();
+                let mut tray = tray.write().unwrap();
+                match message {
+                    TrayMessage::SettingsShow => {
+                        println!("OnSettings!");
+                        // lock.set_visible(true);
+                        // self.set_visible(true);
+                        tray.is_visible = true;
+                        ctx.request_repaint();
+                    }
+                    TrayMessage::Exit => {
+                        // self.set_close(true);
+                        // lock.set_close(false);
+                        println!("OnExit!");
+                        tray.is_close = true;
+
+                        ctx.request_repaint();
+                    }
+                    TrayMessage::OnIconDoubleClick => {
+                        println!("OnIconDoubleClick!");
+                        // self.set_visible(true);
+                        // self.set_visible(true);
+                        tray.is_visible = true;
+                        ctx.request_repaint();
+                    }
+                    TrayMessage::OnIconClick => {
+                        println!("OnIconClick!");
+                    }
                 }
             }
-        }
+        });
     }
+
+    // fn tray_message(&mut self, _frame: &mut eframe::Frame) {
+    //     // let _ = self._tray_icon;
+
+    //     while let Ok(message) = self.tray_receiver.recv() {}
+    // }
 }
 
 impl eframe::App for App {
@@ -81,7 +131,9 @@ impl eframe::App for App {
     // }
     fn on_close_event(&mut self) -> bool {
         self.set_visible(false);
-        self.is_close
+        // self._tray_icon_inner
+        self._tray_icon_inner.read().unwrap().is_close
+        // self.is_close
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
@@ -94,10 +146,20 @@ impl eframe::App for App {
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
         // tray_polling
-        self.tray_message(_frame);
+        // self.tray_message(_frame);
+        if !self._tray_start {
+            println!("Start Tray  Event Monitor");
+            self.tray_monitor(ctx.clone());
+            self._tray_start = true;
+        }
 
-        _frame.set_visible(self.is_visible);
+        if self.get_close() {
+            _frame.close();
+        }
+
+        _frame.set_visible(self.get_visible());
         println!("Polling!");
+        // ctx.request_repaint_after(duration)
 
         // ctx.request_repaint();
 

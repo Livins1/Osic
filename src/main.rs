@@ -2,7 +2,6 @@
 
 mod ui;
 
-
 use std;
 use std::ffi::{OsStr, OsString};
 use std::fs;
