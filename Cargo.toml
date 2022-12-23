@@ -1,0 +1,33 @@
+[package]
+name = "Osic"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[dependencies]
+imagesize = "0.10"
+winit = "0.27"
+windows = { version = "0.43", features = [
+    "implement",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+    "Win32_Devices_Display",
+    "Win32_System_Com",
+    "Win32_Graphics_Gdi",
+] }
+
+
+egui = "0.20.0"
+eframe = { version = "0.20.0", default-features = false, features = [
+    "accesskit",     # Make egui comptaible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+] }
+
+serde = { version = "1", features = ["derive"] }
+trayicon = { version = "0.1", features = ["crossbeam-channel"] }
+crossbeam = "0.8.2"
