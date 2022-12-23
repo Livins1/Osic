@@ -1,6 +1,9 @@
 # Osic
 a Wallpaper related tool
 
+# State
+The materials are being prepared
+
 
 ## Feature
 #### self-adaptation by wallpaper's reselution for more than one monitor.  
@@ -9,8 +12,6 @@ a Wallpaper related tool
 
 ## Tips
 windows support only.
-
-
 
 
 ## Useful

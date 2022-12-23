@@ -33,7 +33,6 @@ impl App {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
-
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         // if let Some(storage) = cc.storage {
@@ -65,7 +64,7 @@ impl App {
                 }
                 TrayMessage::OnIconDoubleClick => {
                     println!("OnIconDoubleClick!");
-                    self.set_visible(true)
+                    self.set_visible(true);
                 }
                 TrayMessage::OnIconClick => {
                     println!("OnIconClick!");
@@ -97,11 +96,10 @@ impl eframe::App for App {
         // tray_polling
         self.tray_message(_frame);
 
-
         _frame.set_visible(self.is_visible);
         println!("Polling!");
 
-        ctx.request_repaint();
+        // ctx.request_repaint();
 
         // #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         // egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
