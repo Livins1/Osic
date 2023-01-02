@@ -1,15 +1,22 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // if we add new fields, give them default values when deserializing old state
 use crossbeam::channel;
+use egui::{Color32, Layout, TextBuffer, WidgetText};
 use std::borrow::{Borrow, BorrowMut};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
-use windows::Win32::UI::Shell::SHARE_ROLE_READER;
 
+use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+use crate::data::config::AppConfig;
+
+// const PAGES: Vec<&str> = Vec["Library", "Options", "Modes", "Exit"];
+
+const PAGES: &'static [&'static str] = &["Library", "Options", "Modes", "Exit"];
+
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TrayMessage {
     SettingsShow,
     OnIconDoubleClick,
@@ -17,11 +24,52 @@ pub enum TrayMessage {
     Exit,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum Pages {
+    Library,
+    Options,
+    Modes,
+    Exit,
+}
+impl Pages {
+    fn find(page: &str) -> Pages {
+        match page {
+            "Library" => Pages::Library,
+            "Options" => Pages::Options,
+            "Modes" => Pages::Modes,
+            "Exit" => Pages::Exit,
+            _ => Pages::Library,
+        }
+    }
+}
+
+fn configure_text_styles(ctx: &egui::Context) {
+    use FontFamily::{Monospace, Proportional};
+
+    let mut style = (*ctx.style()).clone();
+    style.text_styles = [
+        (TextStyle::Heading, FontId::new(25.0, Proportional)),
+        (TextStyle::Body, FontId::new(16.0, Proportional)),
+        (TextStyle::Monospace, FontId::new(12.0, Monospace)),
+        (TextStyle::Button, FontId::new(12.0, Proportional)),
+        (TextStyle::Small, FontId::new(8.0, Proportional)),
+        (
+            TextStyle::Name("Page".into()),
+            FontId::new(23.0, Proportional),
+        ),
+    ]
+    .into();
+    ctx.set_style(style);
+}
+
 // #[derive(serde::Deserialize, serde::Serialize)]
 // #[serde(default)]
 pub struct App {
     // Example stuff:
     label: String,
+    config: AppConfig,
+    page: Pages,
+    selected_wp_path: String,
     _tray_start: bool,
     _tray_icon: TrayIcon<TrayMessage>,
     _tray_icon_inner: Arc<RwLock<TrayIconInner>>,
@@ -48,16 +96,19 @@ impl App {
         //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
 
         // }
+        configure_text_styles(&cc.egui_ctx);
+        println!("New App Created!");
 
         Self {
             label: "Label Stuff".to_string(),
+            page: Pages::Library,
+            selected_wp_path: String::from(""),
+            config: AppConfig::load_from_file(),
             _tray_start: false,
-            // is_close: false,
-            // is_visible: false,
             _tray_icon: tray_icon,
             _tray_icon_inner: Arc::new(RwLock::new(TrayIconInner {
                 is_close: false,
-                is_visible: false,
+                is_visible: true,
                 tray_receiver: tray_receiver,
             })),
         }
@@ -88,30 +139,16 @@ impl App {
                 let mut tray = tray.write().unwrap();
                 match message {
                     TrayMessage::SettingsShow => {
-                        println!("OnSettings!");
-                        // lock.set_visible(true);
-                        // self.set_visible(true);
                         tray.is_visible = true;
-                        ctx.request_repaint();
                     }
                     TrayMessage::Exit => {
-                        // self.set_close(true);
-                        // lock.set_close(false);
-                        println!("OnExit!");
                         tray.is_close = true;
-
-                        ctx.request_repaint();
                     }
                     TrayMessage::OnIconDoubleClick => {
-                        println!("OnIconDoubleClick!");
-                        // self.set_visible(true);
-                        // self.set_visible(true);
-                        tray.is_visible = true;
+                        tray.is_visible = !tray.is_visible;
                         ctx.request_repaint();
                     }
-                    TrayMessage::OnIconClick => {
-                        println!("OnIconClick!");
-                    }
+                    TrayMessage::OnIconClick => {}
                 }
             }
         });
@@ -132,6 +169,9 @@ impl eframe::App for App {
     fn on_close_event(&mut self) -> bool {
         self.set_visible(false);
         // self._tray_icon_inner
+
+        self.config.save_to_toml();
+
         self._tray_icon_inner.read().unwrap().is_close
         // self.is_close
     }
@@ -148,7 +188,7 @@ impl eframe::App for App {
         // tray_polling
         // self.tray_message(_frame);
         if !self._tray_start {
-            println!("Start Tray  Event Monitor");
+            println!("Start Tray Event Monitor");
             self.tray_monitor(ctx.clone());
             self._tray_start = true;
         }
@@ -158,7 +198,92 @@ impl eframe::App for App {
         }
 
         _frame.set_visible(self.get_visible());
-        println!("Polling!");
+        egui::SidePanel::left(egui::Id::new("pages"))
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                ui.add_space(20.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(15.0);
+                    egui::Grid::new("Pages").spacing([0.0, 5.0]).show(ui, |ui| {
+                        for page in PAGES {
+                            // ui.add(egui::Label::new(
+                            //     RichText::new(page.as_str())
+                            //         .text_style(TextStyle::Name("Page".into())),
+                            // ))
+                            // .on_hover_ui(|ui| {
+                            //     println!("OnHover, {}", page.as_str());
+                            // });
+                            // ui.selectable_label(
+                            //     false,
+                            //     RichText::new(page.as_str())
+                            //         .text_style(TextStyle::Name("Page".into())),
+                            // );
+                            ui.selectable_value(
+                                &mut self.page,
+                                Pages::find(page),
+                                RichText::new(page.as_str())
+                                    .text_style(TextStyle::Name("Page".into())),
+                            );
+                            ui.end_row();
+                        }
+                    });
+                });
+            });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if ui.button("Add Path").clicked() {
+                if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                    println!("Get Path : {:?}", path.display().to_string());
+                    self.config.add_wp_dirs(path.display().to_string());
+                }
+            }
+            ui.with_layout(Layout::left_to_right(egui::Align::TOP), |ui| {
+                ui.style_mut().visuals.extreme_bg_color = Color32::BLACK;
+                ui.visuals_mut().selection.bg_fill = Color32::BLACK;
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .max_width(300.0)
+                    .auto_shrink([false; 2])
+                    .show(ui, |ui| {
+                        ui.add_space(5.0);
+                        ui.horizontal_wrapped(|ui| {
+                            for wp_path in self.config.get_wp_dirs() {
+                                ui.add_space(5.0);
+                                let mut button = egui::Button::new(
+                                    RichText::new(wp_path).text_style(TextStyle::Body),
+                                )
+                                .frame(false).wrap(true);
+                                
+
+                                if self.selected_wp_path.eq(wp_path) {
+                                    button = button.fill(Color32::from_white_alpha(10));
+                                }
+
+                                if ui.add(button).clicked() {
+                                    println!("clicked path, {}", wp_path);
+                                    self.selected_wp_path = wp_path.to_string();
+                                }
+                                ui.end_row();
+                            }
+                        })
+                    })
+            });
+
+            egui::TopBottomPanel::bottom("CentralBottomPanel").min_height(200.0).show(ctx, |ui| {
+                ui.label("CentralBootmPanel");
+
+            });
+            // .show(ui, |ui| {
+            //     // ui.painter()
+            //     //     .rect_filled(ui.available_rect_before_wrap(), 10.0, Color32::BLACK);
+            //     // ui.painter().rect_stroke(
+            //     //     ui.max_rect(),
+            //     //     5.0,
+            //     //     ui.visuals().selection.stroke,
+            //     // );
+            // });
+        });
+
         // ctx.request_repaint_after(duration)
 
         // ctx.request_repaint();
@@ -227,89 +352,10 @@ impl eframe::App for App {
     }
 }
 
-fn custom_window_frame(
-    ctx: &egui::Context,
-    frame: &mut eframe::Frame,
-    title: &str,
-    add_contents: impl FnOnce(&mut egui::Ui),
-) {
-    use egui::*;
-    let text_color = ctx.style().visuals.text_color();
-
-    // Height of the title bar
-    let height = 28.0;
-
-    CentralPanel::default()
-        .frame(Frame::none())
-        .show(ctx, |ui| {
-            let rect = ui.max_rect();
-            let painter = ui.painter();
-
-            // Paint the frame:
-            painter.rect(
-                rect.shrink(1.0),
-                10.0,
-                ctx.style().visuals.window_fill(),
-                Stroke::new(1.0, text_color),
-            );
-
-            // Paint the title:
-            painter.text(
-                rect.center_top() + vec2(0.0, height / 2.0),
-                Align2::CENTER_CENTER,
-                title,
-                FontId::proportional(height * 0.8),
-                text_color,
-            );
-
-            // Paint the line under the title:
-            painter.line_segment(
-                [
-                    rect.left_top() + vec2(2.0, height),
-                    rect.right_top() + vec2(-2.0, height),
-                ],
-                Stroke::new(1.0, text_color),
-            );
-
-            // Add the close button:
-            // let close_response = ui.put(
-            //     Rect::from_min_size(rect.left_top(), Vec2::splat(height)),
-            //     Button::new(RichText::new("❌").size(height - 4.0)).frame(false),
-            // );
-            // if close_response.clicked() {
-            //     frame.close();
-
-            //     // frame.set_visible(false);
-            // }
-
-            // Interact with the title bar (drag to move window):
-            let title_bar_rect = {
-                let mut rect = rect;
-                rect.max.y = rect.min.y + height;
-                rect
-            };
-            let title_bar_response =
-                ui.interact(title_bar_rect, Id::new("title_bar"), Sense::click());
-            if title_bar_response.is_pointer_button_down_on() {
-                frame.drag_window();
-            }
-
-            // Add the contents:
-            let content_rect = {
-                let mut rect = rect;
-                rect.min.y = title_bar_rect.max.y;
-                rect
-            }
-            .shrink(4.0);
-            let mut content_ui = ui.child_ui(content_rect, *ui.layout());
-            add_contents(&mut content_ui);
-        });
-}
-
 pub fn ui_init() {
     // let native_options = eframe::NativeOptions::default();
     let native_options = eframe::NativeOptions {
-        resizable: false,
+        resizable: true,
         ..Default::default()
     };
 
@@ -331,8 +377,9 @@ pub fn ui_init() {
         .build()
         .unwrap();
 
+    println!("Funny!");
     eframe::run_native(
-        "Osic Window",
+        "Osic-Window---",
         native_options,
         Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx))),
     );

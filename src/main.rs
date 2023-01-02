@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+mod data;
 mod ui;
 
 use std;
@@ -82,6 +83,7 @@ pub struct Monitor {
     pub height: u32,
 }
 
+// TODO unimplemented
 fn get_monitor_edid() {
     unsafe {
         let wm =
@@ -394,6 +396,6 @@ fn test_monitor_function() {
 }
 
 fn main() {
-    // test_monitor_function()
-    ui::ui_init()
+    // test_monitor_function();
+    ui::ui_init();
 }
