@@ -1,0 +1,17 @@
+.SideBar {
+    width: 100%;
+    /* padding-right: 3em; */
+
+}
+
+.SideBarItem {
+    width: 100%;
+    font-size: x-large;
+    text-align: end;
+
+    .Active {
+        color: white;
+        font-size: xx-large;
+    }
+
+}
