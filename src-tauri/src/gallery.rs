@@ -14,7 +14,6 @@ use tauri::{command, Event, State, Window};
 use base64::{engine::general_purpose, Engine as _};
 use rayon::prelude::*;
 
-use crate::cache::AppCache;
 use crate::utils;
 
 pub struct GalleryState(Arc<Mutex<Gallery>>);
@@ -114,7 +113,7 @@ impl Folder {
             pictures: Vec::new(),
         }
     }
-     fn async_scan(&mut self) {
+    fn async_scan(&mut self) {
         let folder = fs::read_dir(&self.path).unwrap();
 
         let start = Instant::now();
@@ -127,6 +126,8 @@ impl Folder {
                         let task = task::spawn(
                             async move {
                                 let hash = utils::hash_file(path.clone().into()).await.unwrap();
+
+
                                 Picture::new(path, hash)
                             }, // utils::hash_file(path.clone().into())
                         );
@@ -137,16 +138,16 @@ impl Folder {
                     }
                 }
             }
-
         }
         // let results = futures::future::join_all(tasks).await;
         let result = block_on(futures::future::join_all(tasks));
+        self.pictures = result;
 
         let duration = start.elapsed();
         println!(
             "Scan duration: {:?}, Pictures: {:?}",
             duration,
-            result.len()
+            self.pictures.len()
         )
     }
 

@@ -24,11 +24,11 @@ pub fn generate_hash(file_path: &str) -> String {
 
 pub async fn hash_file(path: PathBuf) -> io::Result<String> {
     let mut file = File::open(path)?;
-    let mut contents = Vec::new();
-    file.read_to_end(&mut contents)?;
+    // Read Exact bytes, save us a lot of time 
+    let mut contents = [0;4096];
+    file.read_exact(&mut contents)?;
     let mut hasher = DefaultHasher::new();
     contents.hash(&mut hasher);
-    // Ok(hasher.finish())
     Ok(format!("{:x}", hasher.finish()))
 }
 
