@@ -14,18 +14,20 @@ use tauri::{command, Event, State, Window};
 use base64::{engine::general_purpose, Engine as _};
 use rayon::prelude::*;
 
+use crate::cache;
+use crate::cache::AppCache;
 use crate::utils;
 
 pub struct GalleryState(Arc<Mutex<Gallery>>);
 pub type GalleryArg<'a> = State<'a, GalleryState>;
 
 impl GalleryState {
-    pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(Gallery::new())))
-    }
-    // pub fn new(c: AppCache) -> Self {
-    //     Self(Arc::new(Mutex::new(Gallery::new(c))))
+    // pub fn new() -> Self {
+    //     Self(Arc::new(Mutex::new(Gallery::new())))
     // }
+    pub fn new(c: AppCache) -> Self {
+        Self(Arc::new(Mutex::new(Gallery::new(c))))
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -36,22 +38,21 @@ pub struct PreviewPicture {
 
 pub struct Gallery {
     folders: Vec<Folder>,
-    // Cache: AppCache,
+    cache: AppCache,
 }
 
 impl Gallery {
-    // fn new(c: AppCache) -> Gallery {
-    //     Gallery {
-    //         folders: Vec::new(),
-    //         Cache: c,
-    //     }
-    // }
-    fn new() -> Gallery {
+    fn new(c: AppCache) -> Gallery {
         Gallery {
             folders: Vec::new(),
-            // Cache: c,
+            cache: c,
         }
     }
+    // fn new() -> Gallery {
+    //     Gallery {
+    //         folders: Vec::new(),
+    //     }
+    // }
 
     fn new_folder(&mut self, path: String) {
         self.folders
@@ -81,7 +82,7 @@ impl Gallery {
             let pictures: Vec<PreviewPicture> = folder
                 .select_pictures(page, size)
                 .into_par_iter()
-                .map(|x| x.to_preview())
+                .map(|x| x.to_preview(&self.cache))
                 .collect();
 
             return Ok(pictures);
@@ -126,7 +127,6 @@ impl Folder {
                         let task = task::spawn(
                             async move {
                                 let hash = utils::hash_file(path.clone().into()).await.unwrap();
-
 
                                 Picture::new(path, hash)
                             }, // utils::hash_file(path.clone().into())
@@ -217,25 +217,35 @@ impl Picture {
         }
     }
 
-    fn to_preview(&self) -> PreviewPicture {
+    fn to_preview(&self, c: &AppCache) -> PreviewPicture {
         let src_prefix = match self.path.extension().unwrap().to_str() {
             Some("jpg") => "data:image/jpg;base64,",
             Some("png") => "data:image/png;base64,",
             Some("jpeg") => "data:image/jpg;base64,",
             _ => "",
         };
+        // let thumbnail_cache = c.read_thumbnail(self.hash)
+        if let Ok(Some(t)) = c.read_thumbnail(self.hash.as_str()) {
+            return PreviewPicture {
+                picture: self.clone(),
+                thumbnail: t,
+            };
+        }
 
         PreviewPicture {
             picture: self.clone(),
             // thumbnail: String::new(),
-            thumbnail: match self.thumbnail(256) {
-                Some(s) => String::from(src_prefix) + &s,
+            thumbnail: match self.thumbnail(256, src_prefix) {
+                Some(s) => {
+                    _ = c.save_thumbnail(&self.hash, s.clone());
+                    s
+                }
                 None => String::new(),
             },
         }
     }
 
-    fn thumbnail(&self, max_px: u32) -> Option<String> {
+    fn thumbnail(&self, max_px: u32, prefix: &str) -> Option<String> {
         // let extension = self.path.extension()?.to_str()?;
         let start = Instant::now();
         let image = match image::open(self.path.as_path()) {
@@ -263,7 +273,9 @@ impl Picture {
             .write_to(&mut buffer, image::ImageOutputFormat::Png)
             .unwrap();
 
-        return Some(general_purpose::STANDARD_NO_PAD.encode(buffer.get_ref()));
+        return Some(
+            prefix.to_string() + &general_purpose::STANDARD_NO_PAD.encode(buffer.get_ref()),
+        );
     }
 }
 

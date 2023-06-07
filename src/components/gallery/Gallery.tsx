@@ -91,6 +91,7 @@ const PageSwtichGroup = (props: PageSwtichGroupProps) => {
 export default function Gallery() {
 
     const PageShowFolderNum = 8
+    const PreviewLimit = 6
 
     const [Folders, setFolders] = createSignal<Array<any>>([])
     // Show 8 item a Page this is Const
@@ -116,7 +117,7 @@ export default function Gallery() {
 
 
     createEffect(async () => {
-        const res = await GalleryPreview(previewPage().valueOf(), 6, folderIndex().valueOf())
+        const res = await GalleryPreview(previewPage().valueOf(), PreviewLimit, folderIndex().valueOf())
         if (res) {
             setPreviewImages(() => res)
             console.log("PImages:", previewImages())
@@ -136,7 +137,7 @@ export default function Gallery() {
                 console.log("No Folder Index", props.Folder)
             }
             setPrewviewPage(() => 0)
-            const res = await GalleryPreview(previewPage().valueOf(), 6, props.Folder.index)
+            const res = await GalleryPreview(previewPage().valueOf(), PreviewLimit, props.Folder.index)
             if (res) {
                 setPreviewImages(() => res)
                 console.log("PImages:", previewImages())
@@ -175,6 +176,10 @@ export default function Gallery() {
 
 
         const onNext = async () => {
+            if (previewImages().length < PreviewLimit) {
+                console.log("???", previewImages().length)
+                return 
+            }
             setPrewviewPage((prev) => prev.valueOf() + 1)
         }
         const onPrev = () => {

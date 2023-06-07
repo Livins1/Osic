@@ -65,6 +65,7 @@ dependencies = [
  "futures",
  "image",
  "rayon",
+ "redb",
  "ring",
  "serde",
  "serde_json",
@@ -2292,6 +2293,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3-build-config"
+version = "0.18.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cb946f5ac61bb61a5014924910d936ebd2b23b705f7a4a3c40b05c720b079a3"
+dependencies = [
+ "once_cell",
+ "target-lexicon",
+]
+
+[[package]]
 name = "qoi"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2428,6 +2439,16 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
  "num_cpus",
+]
+
+[[package]]
+name = "redb"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e9c3dce996c249d117eefbdffb5dac2f0cdab5691eb439f037d17751b36f0c3"
+dependencies = [
+ "libc",
+ "pyo3-build-config",
 ]
 
 [[package]]
