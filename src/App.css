@@ -59,4 +59,6 @@ html::-webkit-scrollbar {
   padding: 2em;
   display: flex;
   flex-direction: row;
+  height: 90vh;
+  /* max-height: 100vh; */
 }

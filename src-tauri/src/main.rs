@@ -15,6 +15,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             gallery::add_folder,
             gallery::get_folders,
+            gallery::rescan_folder,
+            gallery::remove_folder,
             gallery::preview
         ])
         .run(tauri::generate_context!())

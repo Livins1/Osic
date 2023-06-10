@@ -2,19 +2,19 @@ use async_std::task;
 use async_std::task::block_on;
 use serde::Deserialize;
 use serde::Serialize;
+use sha2::digest::typenum::private::PrivateAnd;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
 
-use tauri::{command, Event, State, Window};
+use tauri::{command, State, Window};
 
 // use image::{GenericImageView, ImageBuffer, Pixel, Rgba};
 use base64::{engine::general_purpose, Engine as _};
 use rayon::prelude::*;
 
-use crate::cache;
 use crate::cache::AppCache;
 use crate::utils;
 
@@ -26,7 +26,7 @@ impl GalleryState {
     //     Self(Arc::new(Mutex::new(Gallery::new())))
     // }
     pub fn new(c: AppCache) -> Self {
-        Self(Arc::new(Mutex::new(Gallery::new(c))))
+        Self(Arc::new(Mutex::new(Gallery::new(c).cached())))
     }
 }
 
@@ -36,33 +36,61 @@ pub struct PreviewPicture {
     thumbnail: String,
 }
 
+// #[derive(Clone, Copy)]
 pub struct Gallery {
     folders: Vec<Folder>,
     cache: AppCache,
 }
 
 impl Gallery {
-    fn new(c: AppCache) -> Gallery {
+    fn new(c: AppCache) -> Self {
         Gallery {
             folders: Vec::new(),
             cache: c,
         }
     }
-    // fn new() -> Gallery {
-    //     Gallery {
-    //         folders: Vec::new(),
-    //     }
-    // }
+
+    fn cached(mut self) -> Self {
+        println!("Start Load cache..");
+
+        let start = Instant::now();
+        if let Ok(Some(s)) = self.cache.read("folders") {
+            self.folders = serde_json::from_str(s.as_str()).unwrap();
+            self.folders.iter_mut().for_each(|x| x.async_scan());
+        };
+
+        println!("Cache Load Finished: {:?}", start.elapsed(),);
+        self
+    }
+
+    fn save_cache(&self) {
+        if let Ok(s) = serde_json::to_string(&self.folders) {
+            let _ = self.cache.write("folders", s);
+        }
+    }
+
+    fn remove_folder(&mut self, index: usize) {
+        self.folders.remove(index);
+
+        for (i, item) in self.folders.iter_mut().enumerate() {
+            item.index = i
+        }
+    }
 
     fn new_folder(&mut self, path: String) {
-        self.folders
-            .push(Folder::new(path, self.folders.len() as i32));
+        self.folders.push(Folder::new(path, self.folders.len()));
 
         if let Some(folder) = self.folders.last_mut() {
             folder.loading = true;
             // folder.scan();
             folder.async_scan();
         }
+        self.save_cache();
+    }
+
+    fn rescan_folder(&mut self, index: usize) {
+        self.folders[index].async_scan();
+        self.save_cache();
     }
 
     fn preview(
@@ -71,14 +99,7 @@ impl Gallery {
         size: usize,
         path_index: i32,
     ) -> Result<Vec<PreviewPicture>, String> {
-        // let folder = self.folders.get(path_index);
         if let Some(folder) = self.folders.get(path_index as usize) {
-            // let pictures: Vec<PreviewPicture> = folder
-            //     .select_pictures(page, size)
-            //     .iter()
-            //     .map(|x| x.to_preview())
-            //     .collect();
-
             let pictures: Vec<PreviewPicture> = folder
                 .select_pictures(page, size)
                 .into_par_iter()
@@ -98,19 +119,20 @@ impl Gallery {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Folder {
     path: String,
-    index: i32,
+    index: usize,
     loading: bool,
-
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pictures: Vec<Picture>,
+    quanitity: usize,
 }
 
 impl Folder {
-    fn new(path: String, index: i32) -> Folder {
+    fn new(path: String, index: usize) -> Folder {
         Folder {
             path: path,
             index,
             loading: true,
+            quanitity: 0,
             pictures: Vec::new(),
         }
     }
@@ -142,6 +164,7 @@ impl Folder {
         // let results = futures::future::join_all(tasks).await;
         let result = block_on(futures::future::join_all(tasks));
         self.pictures = result;
+        self.quanitity = self.pictures.len();
 
         let duration = start.elapsed();
         println!(
@@ -174,6 +197,7 @@ impl Folder {
                 }
             }
         }
+        self.quanitity = self.pictures.len();
 
         let duration = start.elapsed();
         println!(
@@ -295,6 +319,27 @@ pub fn add_folder(path: &str, gallery: GalleryArg<'_>, window: Window) -> String
 pub fn get_folders(gallery: GalleryArg<'_>) -> Result<Vec<Folder>, String> {
     let gallery = gallery.0.lock().unwrap();
     Ok(gallery.folders.clone())
+}
+
+#[command]
+pub fn remove_folder(gallery: GalleryArg<'_>, index: usize, window: Window) -> Result<(), String> {
+    let mut gallery = gallery.0.lock().unwrap();
+    gallery.remove_folder(index);
+
+    window
+        .emit("update_folders", gallery.folders.clone())
+        .unwrap();
+    Ok(())
+}
+
+#[command]
+pub fn rescan_folder(gallery: GalleryArg<'_>, index: usize, window: Window) -> Result<(), String> {
+    let mut gallery = gallery.0.lock().unwrap();
+    gallery.rescan_folder(index);
+    window
+        .emit("update_folders", gallery.folders.clone())
+        .unwrap();
+    Ok(())
 }
 
 #[command]

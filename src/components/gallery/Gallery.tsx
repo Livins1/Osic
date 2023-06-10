@@ -60,7 +60,7 @@ const PageSwtichGroup = (props: PageSwtichGroupProps) => {
         SetPageNum(PageNum().valueOf() > 0 ? PageNum().valueOf() - 1 : 0)
     }
     const onNextPage = () => {
-        SetPageNum(PageNum() >= TotalPageNum() ? TotalPageNum() : PageNum().valueOf() + 1)
+        SetPageNum(PageNum().valueOf() + 1 >= TotalPageNum().valueOf() ? PageNum() : PageNum().valueOf() + 1)
     }
 
     return <>
@@ -178,7 +178,7 @@ export default function Gallery() {
         const onNext = async () => {
             if (previewImages().length < PreviewLimit) {
                 console.log("???", previewImages().length)
-                return 
+                return
             }
             setPrewviewPage((prev) => prev.valueOf() + 1)
         }
@@ -190,7 +190,7 @@ export default function Gallery() {
         const PageButton = (props: PrewviewrPageButtonProps) => {
             const { Icon, OnClick } = props
             return <button
-                class='bg-slate-900 hover:bg-slate-600 text-white py-2 px-4 rounded'
+                class='bg-slate-900 hover:bg-slate-600 text-white py-2 px-0 rounded'
                 onClick={OnClick}
             >
                 <div class='flex justify-center items-center gap-2'>
@@ -205,7 +205,7 @@ export default function Gallery() {
             <div class='flex flex-row'>
                 <For each={previewImages()} fallback={<div></div>} >
                     {(item, index) => (
-                        <div class='h-2 flex  items-center justify-center  p-1'>
+                        <div class='h-2 flex  items-center justify-center p-1'>
                             <div class='p-0'>
                                 {/* <img class='h-36' src={convertFileSrc(item.picture.path)}></img> */}
                                 <img class='h-36' src={item.thumbnail}></img>
@@ -215,25 +215,26 @@ export default function Gallery() {
                     }
                 </For>
             </div>
+            <div class='flex-1'></div>
             <PageButton Icon={<BsChevronCompactRight />} OnClick={onNext}></PageButton>
         </div>
     }
 
     return (
         <div class="Component-Container">
-            <div class='container mx-auto flex flex-col'
+            <div class='container flex flex-col'
             >
-                <div class='flex flex-col'>
-                    <div class='flex justify-end m-2 gap-2'>
-                        <PageSwtichGroup TotalPageNum={pageTotal} SetPageNum={setPageNum} PageNum={pageNum}></PageSwtichGroup>
-                        <FolderAddBtn></FolderAddBtn>
-                    </div>
-                    <FolderList></FolderList>
-                    <Show when={previewImages().length > 0}>
-                        <Previewer></Previewer>
-                    </Show>
-
+                <div class='flex justify-end m-2 gap-2'>
+                    <PageSwtichGroup TotalPageNum={pageTotal} SetPageNum={setPageNum} PageNum={pageNum}></PageSwtichGroup>
+                    <FolderAddBtn></FolderAddBtn>
                 </div>
+                <div class=''>
+                    <FolderList></FolderList>
+                </div>
+                <div class='flex-1'></div>
+                <Show when={previewImages().length > 0}>
+                    <Previewer></Previewer>
+                </Show>
 
             </div>
         </div>

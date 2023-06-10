@@ -1,5 +1,4 @@
-
-use redb::{Database, Error, TableDefinition, ReadableTable};
+use redb::{Database, Error, ReadableTable, TableDefinition};
 use redb::{RedbKey, RedbValue};
 
 const TABLE: TableDefinition<&str, &str> = TableDefinition::new("default");
@@ -18,16 +17,16 @@ impl AppCache {
         }
     }
 
-    pub fn table_write(&self, key: &str, value: &str) -> Result<(), Error> {
-        let write_txn = self.db.begin_write()?;
-        {
-            // let mut table = write_txn.open_table(TableDefinition::new(table_name))?;
-            let mut table = write_txn.open_table(TABLE)?;
-            table.insert(key, value)?;
-        }
-        write_txn.commit()?;
-        Ok(())
-    }
+    // pub fn table_write(&self, key: &str, value: &str) -> Result<(), Error> {
+    //     let write_txn = self.db.begin_write()?;
+    //     {
+    //         // let mut table = write_txn.open_table(TableDefinition::new(table_name))?;
+    //         let mut table = write_txn.open_table(TABLE)?;
+    //         table.insert(key, value)?;
+    //     }
+    //     write_txn.commit()?;
+    //     Ok(())
+    // }
 
     pub fn write_table<'a, K: RedbKey, V: RedbValue>(
         &self,
@@ -45,9 +44,24 @@ impl AppCache {
         Ok(())
     }
 
+    pub fn write(&self, key: &str, value: String) -> Result<(), Error> {
+        self.write_table(TABLE, key, value.as_str())?;
+        Ok(())
+    }
+
+    pub fn read(&self, key: &str) -> Result<Option<String>, Error> {
+        let read_txn = self.db.begin_read()?;
+        let t = read_txn.open_table(TABLE)?;
+        if let Some(value) = t.get(key).unwrap() {
+            return Ok(Some(value.value().to_string()));
+        };
+        Ok(None)
+    }
+
     pub fn save_thumbnail(&self, key: &str, value: String) -> Result<(), Error> {
         let table: TableDefinition<&str, &str> = TableDefinition::new("thumbnail");
         self.write_table(table, key, value.as_str())?;
+
         Ok(())
     }
 
@@ -56,12 +70,8 @@ impl AppCache {
         let read_txn = self.db.begin_read()?;
         let t = read_txn.open_table(table)?;
         if let Some(value) = t.get(key).unwrap() {
-            // value.value()
-            return Ok(Some(value.value().to_string()))
+            return Ok(Some(value.value().to_string()));
         };
-        // Ok(String::new())
         Ok(None)
-
     }
-
 }
