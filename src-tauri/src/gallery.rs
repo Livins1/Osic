@@ -216,7 +216,7 @@ impl Folder {
             return Vec::new();
         }
 
-        let end_index = std::cmp::min(start_index + size, self.pictures.len() - 1);
+        let end_index = std::cmp::min(start_index + size, self.pictures.len() );
 
         let slice = self.pictures[start_index..end_index].to_vec();
         return slice;

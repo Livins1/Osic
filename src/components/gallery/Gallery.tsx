@@ -1,7 +1,7 @@
 
 import './Gallery.css'
-import { IoAddCircleSharp } from 'solid-icons/io'
-import { AiFillRightCircle, AiFillLeftCircle } from 'solid-icons/ai'
+import { IoAddCircleSharp, IoImagesSharp, IoRefreshCircleSharp, IoMenu } from 'solid-icons/io'
+import { AiFillRightCircle, AiFillLeftCircle, AiFillDelete } from 'solid-icons/ai'
 import { BsChevronCompactLeft, BsChevronCompactRight } from 'solid-icons/bs'
 import { open } from '@tauri-apps/api/dialog';
 
@@ -10,7 +10,7 @@ import { appDataDir } from '@tauri-apps/api/path';
 import { createEffect, createSignal, onMount, For, JSX, Show } from 'solid-js';
 import { emit, listen } from '@tauri-apps/api/event'
 
-import { GalleryAddFolder, GalleryGetFolders, GalleryPreview } from './Invoke';
+import { GalleryAddFolder, GalleryGetFolders, GalleryPreview, GalleryDelFolder, GalleryRescanFolder } from './Invoke';
 
 
 const FolderAddBtn = () => {
@@ -91,7 +91,7 @@ const PageSwtichGroup = (props: PageSwtichGroupProps) => {
 export default function Gallery() {
 
     const PageShowFolderNum = 8
-    const PreviewLimit = 6
+    const PreviewLimit = 5
 
     const [Folders, setFolders] = createSignal<Array<any>>([])
     // Show 8 item a Page this is Const
@@ -144,12 +144,40 @@ export default function Gallery() {
             }
         }
 
+        const onDelete = async (event: any) => {
+            event.stopPropagation()
+            await GalleryDelFolder(props.Folder.index)
+        }
+        const onRescan = async (event: any) => {
+            event.stopPropagation()
+            await GalleryRescanFolder(props.Folder.index)
+        }
 
-        return <button class='bg-slate-900 text-white  max-w-full  w-full' onClick={onClick}>
-            <div class='text-left text-ellipsis overflow-hidden truncate max-w-full'>
+        const onMenu = async () => { }
+
+
+        return <div class='flex flex-col justify-start bg-slate-900 text-white  max-w-full  w-full pl-1' onClick={onClick}>
+            <div class='text-left text-ellipsis overflow-hidden truncate max-w-full m-2 font-medium text-lg'>
                 {props.Folder.path}
             </div>
-        </button>
+            <div class='flex justify-start items-center  w-full pl-2'>
+                <IoImagesSharp size={18}></IoImagesSharp>
+                <div class='ml-2 text-lg font-medium text-green-400 '>
+                    {props.Folder.quanitity}
+                </div>
+                <div class='flex-1'></div>
+                <button class='ml-3 rounded-none p-1 pl-4 pr-4' onClick={onRescan}>
+                    <IoRefreshCircleSharp size={22}></IoRefreshCircleSharp>
+                    {/* <AiFillDelete size={20}></AiFillDelete> */}
+                </button>
+                <button class='rounded-none p-1 pl-4 pr-4 ' onClick={onDelete}>
+                    <AiFillDelete size={22}></AiFillDelete>
+                </button>
+                <button class='rounded-none p-1 pl-4 pr-4 ' >
+                    <IoMenu size={22}></IoMenu>
+                </button>
+            </div>
+        </div>
     }
 
     const FolderList = () => {
@@ -161,10 +189,8 @@ export default function Gallery() {
         return <div class='grid grid-cols-2 grid-rows-4 grid-flow-dense gap-1' style={{ "max-height": "50vh" }}>
             <For each={PageFolders()} fallback={<div></div>} >
                 {(item, index) => (
-                    <div class='' >
-                        <div class='p-0'>
-                            <FolderItem Folder={item} ></FolderItem>
-                        </div>
+                    <div class='p-0'>
+                        <FolderItem Folder={item} ></FolderItem>
                     </div>
                 )
                 }
@@ -190,7 +216,7 @@ export default function Gallery() {
         const PageButton = (props: PrewviewrPageButtonProps) => {
             const { Icon, OnClick } = props
             return <button
-                class='bg-slate-900 hover:bg-slate-600 text-white py-2 px-0 rounded'
+                class='bg-slate-900 hover:bg-slate-600 text-white mt-5 mb-5 m-2 px-2 rounded-none '
                 onClick={OnClick}
             >
                 <div class='flex justify-center items-center gap-2'>
@@ -205,19 +231,18 @@ export default function Gallery() {
             <div class='flex flex-row'>
                 <For each={previewImages()} fallback={<div></div>} >
                     {(item, index) => (
-                        <div class='h-2 flex  items-center justify-center p-1'>
-                            <div class='p-0'>
-                                {/* <img class='h-36' src={convertFileSrc(item.picture.path)}></img> */}
-                                <img class='h-36' src={item.thumbnail}></img>
+                        <div class='h-48 flex  items-center justify-center p-1  hover:bg-slate-300'>
+                            <div class='h-40 overflow-hidden items-center self-center flex'>
+                                <img src={item.thumbnail}></img>
                             </div>
                         </div>
                     )
                     }
                 </For>
-            </div>
+            </div >
             <div class='flex-1'></div>
             <PageButton Icon={<BsChevronCompactRight />} OnClick={onNext}></PageButton>
-        </div>
+        </div >
     }
 
     return (
