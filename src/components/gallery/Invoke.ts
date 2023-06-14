@@ -18,7 +18,6 @@ export const GalleryPreview = async (page: number, size: number, folderIndex: nu
     return res as Array<any>
 }
 
-
 export const GalleryDelFolder = async (index: number): Promise<void> => {
     const _ = await invoke('remove_folder', { index })
 }

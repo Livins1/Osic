@@ -17,7 +17,8 @@ fn main() {
             gallery::get_folders,
             gallery::rescan_folder,
             gallery::remove_folder,
-            gallery::preview
+            gallery::preview,
+            gallery::explorer_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

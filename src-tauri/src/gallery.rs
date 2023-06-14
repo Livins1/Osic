@@ -2,7 +2,6 @@ use async_std::task;
 use async_std::task::block_on;
 use serde::Deserialize;
 use serde::Serialize;
-use sha2::digest::typenum::private::PrivateAnd;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -216,7 +215,7 @@ impl Folder {
             return Vec::new();
         }
 
-        let end_index = std::cmp::min(start_index + size, self.pictures.len() );
+        let end_index = std::cmp::min(start_index + size, self.pictures.len());
 
         let slice = self.pictures[start_index..end_index].to_vec();
         return slice;
@@ -357,4 +356,10 @@ pub fn preview(
     gallery.preview(page, size, folder_index)
 
     // Ok(())
+}
+
+#[command]
+pub fn explorer_file(path: &str) -> Result<(), String> {
+    let _ = utils::file_locate_exploer(path);
+    Ok(())
 }

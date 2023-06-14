@@ -1,16 +1,17 @@
 
 import './Gallery.css'
 import { IoAddCircleSharp, IoImagesSharp, IoRefreshCircleSharp, IoMenu } from 'solid-icons/io'
-import { AiFillRightCircle, AiFillLeftCircle, AiFillDelete } from 'solid-icons/ai'
+import { AiFillRightCircle, AiFillLeftCircle, AiFillDelete, AiFillFolderOpen } from 'solid-icons/ai'
 import { BsChevronCompactLeft, BsChevronCompactRight } from 'solid-icons/bs'
 import { open } from '@tauri-apps/api/dialog';
 
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 import { appDataDir } from '@tauri-apps/api/path';
-import { createEffect, createSignal, onMount, For, JSX, Show } from 'solid-js';
+import { createEffect, createSignal, onMount, For, JSX, Show, createReaction } from 'solid-js';
 import { emit, listen } from '@tauri-apps/api/event'
 
 import { GalleryAddFolder, GalleryGetFolders, GalleryPreview, GalleryDelFolder, GalleryRescanFolder } from './Invoke';
+import { ShowInFolder } from '../../cmd/util';
 
 
 const FolderAddBtn = () => {
@@ -50,6 +51,11 @@ type PageSwtichGroupProps = {
 type PrewviewrPageButtonProps = {
     Icon: JSX.Element,
     OnClick: () => any
+}
+type PreviewOptBtnProps = {
+    Icon: JSX.Element,
+    OnClick: () => any,
+    Title: string,
 }
 
 
@@ -117,6 +123,7 @@ export default function Gallery() {
 
 
     createEffect(async () => {
+
         const res = await GalleryPreview(previewPage().valueOf(), PreviewLimit, folderIndex().valueOf())
         if (res) {
             setPreviewImages(() => res)
@@ -201,6 +208,14 @@ export default function Gallery() {
     const Previewer = () => {
 
 
+        const [selectIndex, setSelected] = createSignal<Number>(-1)
+
+        const trackSelected = createReaction(() => setSelected(-1))
+
+        // if previewImages Changed, call trackSelected,  setSelected to -1
+        trackSelected(() => previewImages())
+
+
         const onNext = async () => {
             if (previewImages().length < PreviewLimit) {
                 console.log("???", previewImages().length)
@@ -210,6 +225,22 @@ export default function Gallery() {
         }
         const onPrev = () => {
             setPrewviewPage((prev) => prev.valueOf() > 0 ? prev.valueOf() - 1 : 0)
+        }
+
+        const showInExplorer = async () => {
+            const f = previewImages().at(selectIndex().valueOf())
+            if (f.picture) {
+
+                await ShowInFolder(f.picture.path)
+            }
+        }
+        const onSelectedPicture = (index: number) => {
+
+            if (index == selectIndex().valueOf()) {
+                setSelected(-1)
+            } else {
+                setSelected(index)
+            }
         }
 
 
@@ -225,24 +256,46 @@ export default function Gallery() {
             </button>
         }
 
-
-        return <div class='flex flex-row'>
-            <PageButton Icon={<BsChevronCompactLeft />} OnClick={onPrev}   ></PageButton>
+        const PreviewOptBtn = (props: PreviewOptBtnProps) => {
+            const { Icon, OnClick, Title } = props
+            return <button
+                class='bg-slate-900 hover:bg-slate-600 text-white  m-2 px-2 rounded-none '
+                onClick={OnClick}
+            >
+                <div class='flex justify-center items-center gap-2'>
+                    {Icon}
+                    <span>{Title}</span>
+                </div>
+            </button>
+        }
+        return <div class='flex flex-col'>
             <div class='flex flex-row'>
-                <For each={previewImages()} fallback={<div></div>} >
-                    {(item, index) => (
-                        <div class='h-48 flex  items-center justify-center p-1  hover:bg-slate-300'>
-                            <div class='h-40 overflow-hidden items-center self-center flex'>
-                                <img src={item.thumbnail}></img>
+                <PreviewOptBtn Icon={<AiFillFolderOpen />} Title='Show in Exploer' OnClick={showInExplorer}></PreviewOptBtn>
+
+            </div>
+            <div class='flex flex-row'>
+                <PageButton Icon={<BsChevronCompactLeft />} OnClick={onPrev}   ></PageButton>
+                <div class='flex flex-row'>
+                    <For each={previewImages()} fallback={<div></div>} >
+                        {(item, index) => (
+                            <div class='h-48 flex  items-center justify-center p-1  ' classList={{
+                                'hover:bg-slate-700': selectIndex() != index(),
+                                'bg-slate-600': selectIndex() == index(),
+
+                            }} onClick={() => onSelectedPicture(index())}>
+                                <div class='h-40 overflow-hidden items-center self-center flex'>
+                                    <img src={item.thumbnail}></img>
+                                </div>
                             </div>
-                        </div>
-                    )
-                    }
-                </For>
+                        )
+                        }
+                    </For>
+                </div >
+                <div class='flex-1'></div>
+                <PageButton Icon={<BsChevronCompactRight />} OnClick={onNext}></PageButton>
             </div >
-            <div class='flex-1'></div>
-            <PageButton Icon={<BsChevronCompactRight />} OnClick={onNext}></PageButton>
-        </div >
+        </div>
+
     }
 
     return (
