@@ -25,7 +25,17 @@ sha2 = "0.10.6"
 ring = "0.16.20"
 async-std = "1.12.0"
 futures = "0.3.28"
-redb = "0.20.0"
+redb = "1.0.0"
+windows = { version = "0.48", features = [
+    "implement",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+    "Win32_Devices_Display",
+    "Win32_System_Com",
+    "Win32_Graphics_Gdi",
+] }
+
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

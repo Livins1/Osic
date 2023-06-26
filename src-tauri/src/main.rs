@@ -4,10 +4,18 @@
 mod cache;
 mod gallery;
 mod utils;
+mod monitor;
+mod win32;
+    
+
+    
 
 use gallery::GalleryState;
 
 fn main() {
+
+    win32::test_monitor_function();
+
     let app_cache = cache::AppCache::new("Osic.cache");
 
     tauri::Builder::default()

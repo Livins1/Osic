@@ -234,6 +234,13 @@ export default function Gallery() {
                 await ShowInFolder(f.picture.path)
             }
         }
+
+        const preview = async () => {
+            console.log("preview")
+
+
+        }
+
         const onSelectedPicture = (index: number) => {
 
             if (index == selectIndex().valueOf()) {
@@ -268,10 +275,11 @@ export default function Gallery() {
                 </div>
             </button>
         }
+
         return <div class='flex flex-col'>
             <div class='flex flex-row'>
                 <PreviewOptBtn Icon={<AiFillFolderOpen />} Title='Show in Exploer' OnClick={showInExplorer}></PreviewOptBtn>
-
+                <PreviewOptBtn Icon={<AiFillFolderOpen />} Title='Preview' OnClick={showInExplorer}></PreviewOptBtn>
             </div>
             <div class='flex flex-row'>
                 <PageButton Icon={<BsChevronCompactLeft />} OnClick={onPrev}   ></PageButton>
