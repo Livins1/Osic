@@ -25,3 +25,7 @@ export const GalleryDelFolder = async (index: number): Promise<void> => {
 export const GalleryRescanFolder = async (index: number): Promise<void> => {
     const _ = await invoke('rescan_folder', { index })
 }
+
+export const PreviewPicutre = async (imgPath: string): Promise<void> => {
+    const _ = await invoke("preview_as_wallpaper", {imgPath})
+}

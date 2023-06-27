@@ -10,7 +10,6 @@ use std::time::Instant;
 
 use tauri::{command, State, Window};
 
-// use image::{GenericImageView, ImageBuffer, Pixel, Rgba};
 use base64::{engine::general_purpose, Engine as _};
 use rayon::prelude::*;
 
@@ -21,9 +20,6 @@ pub struct GalleryState(Arc<Mutex<Gallery>>);
 pub type GalleryArg<'a> = State<'a, GalleryState>;
 
 impl GalleryState {
-    // pub fn new() -> Self {
-    //     Self(Arc::new(Mutex::new(Gallery::new())))
-    // }
     pub fn new(c: AppCache) -> Self {
         Self(Arc::new(Mutex::new(Gallery::new(c).cached())))
     }

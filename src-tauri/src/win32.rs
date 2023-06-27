@@ -5,6 +5,7 @@ use std::mem::zeroed;
 use crate::utils;
 use std::time::Instant;
 
+use windows::core::HSTRING;
 use windows::core::PCWSTR;
 
 use windows::Win32::Foundation::ERROR_SUCCESS;
@@ -90,62 +91,136 @@ fn query_display_config() -> Result<Vec<(String, String, String)>, String> {
     Ok(r)
 }
 
-pub fn get_monitors() -> Result<Vec<crate::monitor::Monitor>, String> {
-    let mut monitors: Vec<crate::monitor::Monitor> = Vec::new();
-    unsafe {
-        if CoInitialize(None).is_err() {
-            return Err("CoInitialize Error".to_string());
+// pub fn get_monitors() -> Result<Vec<crate::monitor::Monitor>, String> {
+//     let mut monitors: Vec<crate::monitor::Monitor> = Vec::new();
+//     unsafe {
+//         if CoInitialize(None).is_err() {
+//             return Err("CoInitialize Error".to_string());
+//         }
+//     };
+//     unsafe {
+//         let wm =
+//             CoCreateInstance::<_, IDesktopWallpaper>(&DesktopWallpaper, None, CLSCTX_ALL).unwrap();
+
+//         // device count
+//         let c = wm.GetMonitorDevicePathCount();
+//         for i in 0..c.unwrap() {
+//             let info = wm.GetMonitorDevicePathAt(i);
+//             let info = info.unwrap();
+
+//             // GetMonitorRECT
+//             if let Ok(rec) = wm.GetMonitorRECT(PCWSTR(info.as_ptr())) {
+//                 println!("Count: {:?}", &info.to_string());
+//                 println!("GetMonitorDevice Rect: {:?}", rec);
+//                 let id = info
+//                     .to_string()
+//                     .expect("error calling monitor device info to_string");
+
+//                 monitors.push(crate::monitor::Monitor::from_win32(
+//                     "".to_string(),
+//                     id,
+//                     "".to_string(),
+//                     rec,
+//                 ))
+//             }
+//         }
+
+//         if monitors.len() > 0 {
+//             match query_display_config() {
+//                 Ok(configs) => {
+//                     for (name, device_path, gdi_name) in configs {
+//                         if let Some(monitor) = monitors.iter_mut().find(|m| m.id == device_path) {
+//                             monitor.title = name;
+//                             monitor.gdi_name = gdi_name;
+//                         }
+//                     }
+//                 }
+//                 Err(e) => return Err(e),
+//             }
+//         }
+//         Ok(monitors)
+//     }
+// }
+
+pub struct Win32API {
+    wm: IDesktopWallpaper,
+}
+// here: https://stackoverflow.com/questions/60292897/why-cant-i-send-mutexmut-c-void-between-threads 
+unsafe impl Send for Win32API {}
+
+
+impl Win32API {
+    pub fn new() -> Self {
+        unsafe {
+            CoInitialize(None).expect("CoInitialize Error");
+            let wm = CoCreateInstance::<_, IDesktopWallpaper>(&DesktopWallpaper, None, CLSCTX_ALL)
+                .unwrap();
+            Self { wm }
         }
-    };
-    unsafe {
-        let wm =
-            CoCreateInstance::<_, IDesktopWallpaper>(&DesktopWallpaper, None, CLSCTX_ALL).unwrap();
+    }
 
-        // device count
-        let c = wm.GetMonitorDevicePathCount();
-        for i in 0..c.unwrap() {
-            let info = wm.GetMonitorDevicePathAt(i);
-            let info = info.unwrap();
+    pub fn get_monitors(&self) -> Result<Vec<crate::monitor::Monitor>, String> {
+        let mut monitors: Vec<crate::monitor::Monitor> = Vec::new();
+        unsafe {
+            // device count
+            let c = self.wm.GetMonitorDevicePathCount();
+            for i in 0..c.unwrap() {
+                let info = self.wm.GetMonitorDevicePathAt(i);
+                let info = info.unwrap();
 
-            // GetMonitorRECT
-            if let Ok(rec) = wm.GetMonitorRECT(PCWSTR(info.as_ptr())) {
-                println!("Count: {:?}", &info.to_string());
-                println!("GetMonitorDevice Rect: {:?}", rec);
-                let id = info
-                    .to_string()
-                    .expect("error calling monitor device info to_string");
+                // GetMonitorRECT
+                if let Ok(rec) = self.wm.GetMonitorRECT(PCWSTR(info.as_ptr())) {
+                    let id = info
+                        .to_string()
+                        .expect("error calling monitor device info to_string");
 
-                monitors.push(crate::monitor::Monitor::from_win32(
-                    "".to_string(),
-                    id,
-                    "".to_string(),
-                    rec,
-                ))
+                    monitors.push(crate::monitor::Monitor::from_win32(
+                        "".to_string(),
+                        id,
+                        "".to_string(),
+                        rec,
+                    ))
+                }
             }
-        }
 
-        if monitors.len() > 0 {
-            match query_display_config() {
-                Ok(configs) => {
-                    for (name, device_path, gdi_name) in configs {
-                        if let Some(monitor) = monitors.iter_mut().find(|m| m.id == device_path) {
-                            monitor.title = name;
-                            monitor.gdi_name = gdi_name;
+            if monitors.len() > 0 {
+                match query_display_config() {
+                    Ok(configs) => {
+                        for (name, device_path, gdi_name) in configs {
+                            if let Some(monitor) = monitors.iter_mut().find(|m| m.id == device_path)
+                            {
+                                monitor.title = name;
+                                monitor.gdi_name = gdi_name;
+                            }
                         }
                     }
+                    Err(e) => return Err(e),
                 }
-                Err(e) => return Err(e),
             }
+            Ok(monitors)
         }
-        Ok(monitors)
+    }
+    pub fn set_wallpaper(
+        &self,
+        monitor_id: &str,
+        wallpaper: &str,
+    ) -> Result<(), windows::core::Error> {
+        unsafe {
+            self.wm.SetWallpaper(
+                PCWSTR::from_raw(HSTRING::from(monitor_id).as_ptr()),
+                PCWSTR::from_raw(HSTRING::from(wallpaper).as_ptr()),
+            )
+        }
     }
 }
 
 pub fn test_monitor_function() {
     let start = Instant::now();
-    let buffer = get_monitors();
-    if let Ok(b) = buffer {
-        println!("Monitors: {:?}", b);
+
+    let w32api = Win32API::new();
+
+    if let Ok(b) = w32api.get_monitors() {
+        println!("Monitors : {:?}", b)
     }
 
     println!("test_monitor_function end: {:?}", start.elapsed(),);

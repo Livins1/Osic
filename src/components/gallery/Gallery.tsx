@@ -10,7 +10,7 @@ import { appDataDir } from '@tauri-apps/api/path';
 import { createEffect, createSignal, onMount, For, JSX, Show, createReaction } from 'solid-js';
 import { emit, listen } from '@tauri-apps/api/event'
 
-import { GalleryAddFolder, GalleryGetFolders, GalleryPreview, GalleryDelFolder, GalleryRescanFolder } from './Invoke';
+import { GalleryAddFolder, GalleryGetFolders, GalleryPreview, GalleryDelFolder, GalleryRescanFolder, PreviewPicutre } from './Invoke';
 import { ShowInFolder } from '../../cmd/util';
 
 
@@ -230,13 +230,17 @@ export default function Gallery() {
         const showInExplorer = async () => {
             const f = previewImages().at(selectIndex().valueOf())
             if (f.picture) {
-
                 await ShowInFolder(f.picture.path)
             }
         }
 
-        const preview = async () => {
+        const previewAsWallpaper = async () => {
             console.log("preview")
+
+            const f = previewImages().at(selectIndex().valueOf())
+            if (f.picture) {
+                await PreviewPicutre(f.picture.path)
+            }
 
 
         }
@@ -279,7 +283,7 @@ export default function Gallery() {
         return <div class='flex flex-col'>
             <div class='flex flex-row'>
                 <PreviewOptBtn Icon={<AiFillFolderOpen />} Title='Show in Exploer' OnClick={showInExplorer}></PreviewOptBtn>
-                <PreviewOptBtn Icon={<AiFillFolderOpen />} Title='Preview' OnClick={showInExplorer}></PreviewOptBtn>
+                <PreviewOptBtn Icon={<AiFillFolderOpen />} Title='Preview' OnClick={previewAsWallpaper}></PreviewOptBtn>
             </div>
             <div class='flex flex-row'>
                 <PageButton Icon={<BsChevronCompactLeft />} OnClick={onPrev}   ></PageButton>
