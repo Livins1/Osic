@@ -391,11 +391,12 @@ fn get_monitor_device_path_count() {
 }
 
 fn test_monitor_function() {
-    get_monitor_device_path_count();
+    // get_monitor_device_path_count();
     query_display_config()
 }
 
 fn main() {
+    data::monitor::get_monitor_device_path();
     // test_monitor_function();
-    ui::ui_init();
+    // ui::ui_init();
 }
