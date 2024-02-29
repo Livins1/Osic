@@ -10,7 +10,9 @@ use std::time::Duration;
 use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
+use crate::data;
 use crate::data::config::AppConfig;
+use crate::data::monitor::Monitor;
 
 // const PAGES: Vec<&str> = Vec["Library", "Options", "Modes", "Exit"];
 
@@ -69,6 +71,9 @@ pub struct App {
     label: String,
     config: AppConfig,
     page: Pages,
+    monitors: Vec<Monitor>,
+
+    selected_monitor: Monitor,
     selected_wp_path: String,
     _tray_start: bool,
     _tray_icon: TrayIcon<TrayMessage>,
@@ -86,6 +91,7 @@ impl App {
         cc: &eframe::CreationContext<'_>,
         tray_icon: TrayIcon<TrayMessage>,
         tray_receiver: channel::Receiver<TrayMessage>,
+        monitors: Vec<Monitor>,
     ) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
@@ -103,6 +109,8 @@ impl App {
             label: "Label Stuff".to_string(),
             page: Pages::Library,
             selected_wp_path: String::from(""),
+            selected_monitor: monitors.first().unwrap().clone(),
+            monitors: monitors,
             config: AppConfig::load_from_file(),
             _tray_start: false,
             _tray_icon: tray_icon,
@@ -198,37 +206,31 @@ impl eframe::App for App {
         }
 
         _frame.set_visible(self.get_visible());
-        egui::SidePanel::left(egui::Id::new("pages"))
-            .show_separator_line(false)
-            .show(ctx, |ui| {
-                ui.add_space(20.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(15.0);
-                    egui::Grid::new("Pages").spacing([0.0, 5.0]).show(ui, |ui| {
-                        for page in PAGES {
-                            // ui.add(egui::Label::new(
-                            //     RichText::new(page.as_str())
-                            //         .text_style(TextStyle::Name("Page".into())),
-                            // ))
-                            // .on_hover_ui(|ui| {
-                            //     println!("OnHover, {}", page.as_str());
-                            // });
+
+        egui::TopBottomPanel::top("TopPanel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                egui::Grid::new("Monitors")
+                    .spacing([5.0, 5.0])
+                    .show(ui, |ui| {
+                        for monitor in &self.monitors {
+                            if ui
+                                .add(egui::SelectableLabel::new(
+                                    self.selected_monitor.device_id == monitor.device_id,
+                                    &monitor.name,
+                                ))
+                                .clicked()
+                            {
+                                self.selected_monitor = monitor.clone()
+                            }
                             // ui.selectable_label(
-                            //     false,
-                            //     RichText::new(page.as_str())
-                            //         .text_style(TextStyle::Name("Page".into())),
+                            //     self.selected_monitor.device_id == monitor.device_id,
+                            //     &monitor.name,
                             // );
-                            ui.selectable_value(
-                                &mut self.page,
-                                Pages::find(page),
-                                RichText::new(page.as_str())
-                                    .text_style(TextStyle::Name("Page".into())),
-                            );
-                            ui.end_row();
+                            // ui.end_row();
                         }
-                    });
-                });
-            });
+                    })
+            })
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if ui.button("Add Path").clicked() {
@@ -252,8 +254,8 @@ impl eframe::App for App {
                                 let mut button = egui::Button::new(
                                     RichText::new(wp_path).text_style(TextStyle::Body),
                                 )
-                                .frame(false).wrap(true);
-                                
+                                .frame(false)
+                                .wrap(true);
 
                                 if self.selected_wp_path.eq(wp_path) {
                                     button = button.fill(Color32::from_white_alpha(10));
@@ -269,10 +271,6 @@ impl eframe::App for App {
                     })
             });
 
-            egui::TopBottomPanel::bottom("CentralBottomPanel").min_height(200.0).show(ctx, |ui| {
-                ui.label("CentralBootmPanel");
-
-            });
             // .show(ui, |ui| {
             //     // ui.painter()
             //     //     .rect_filled(ui.available_rect_before_wrap(), 10.0, Color32::BLACK);
@@ -377,10 +375,11 @@ pub fn ui_init() {
         .build()
         .unwrap();
 
-    println!("Funny!");
-    eframe::run_native(
-        "Osic-Window---",
-        native_options,
-        Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx))),
-    );
+    if let Ok(monitors) = data::monitor::get_monitor_device_path() {
+        eframe::run_native(
+            "Osic-Windows",
+            native_options,
+            Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx, monitors))),
+        );
+    }
 }

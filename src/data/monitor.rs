@@ -1,10 +1,9 @@
-use std::ffi::{OsStr, OsString};
 use std::mem::zeroed;
 
 use crate::utils;
+use serde::de::value::Error;
 use windows::core::PCWSTR;
-use windows::core::PWSTR;
-use windows::Win32::Foundation::{ERROR_SUCCESS, LUID, NO_ERROR, WIN32_ERROR};
+use windows::Win32::Foundation::{ERROR_SUCCESS, WIN32_ERROR};
 use windows::Win32::Graphics::Gdi::QDC_ONLY_ACTIVE_PATHS;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::Shell::DesktopWallpaper;
@@ -12,12 +11,11 @@ use windows::Win32::UI::Shell::IDesktopWallpaper;
 
 use windows::Win32::Devices::Display::{
     DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
-    DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
-    DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
+    DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO,
     DISPLAYCONFIG_TARGET_DEVICE_NAME,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Monitor {
     pub name: String,
     pub device_id: String,
@@ -29,7 +27,7 @@ pub struct Monitor {
     pub height: i32,
 }
 
-pub fn get_monitor_device_path() {
+pub fn get_monitor_device_path() -> Result<Vec<Monitor>, Error> {
     let mut monitors: Vec<Monitor> = Vec::<Monitor>::new();
 
     unsafe { CoInitialize(None).expect("error calling CoInitialize") };
@@ -105,10 +103,10 @@ pub fn get_monitor_device_path() {
 
         let result = unsafe { DisplayConfigGetDeviceInfo(&mut target_name.header) };
 
-        let mut source_name: DISPLAYCONFIG_SOURCE_DEVICE_NAME = unsafe { std::mem::zeroed() };
-        source_name.header.adapterId = path.targetInfo.adapterId;
-        source_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
-        source_name.header.size = std::mem::size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
+        // let mut source_name: DISPLAYCONFIG_SOURCE_DEVICE_NAME = unsafe { std::mem::zeroed() };
+        // source_name.header.adapterId = path.targetInfo.adapterId;
+        // source_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        // source_name.header.size = std::mem::size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
 
         // let result = unsafe { DisplayConfigGetDeviceInfo(&mut source_name.header) };
         // if result != ERROR_SUCCESS as _ {
@@ -117,13 +115,13 @@ pub fn get_monitor_device_path() {
         // }
         let name = utils::wstr(&target_name.monitorFriendlyDeviceName);
         let device_path = utils::wstr(&target_name.monitorDevicePath);
-        // let gdi_name = utils::wstr(&source_name.viewGdiDeviceName);
         for monitor in &mut monitors {
             if monitor.device_id == device_path {
                 monitor.name = name.clone();
                 print!("{:?}", monitor);
             }
         }
-
     }
+
+    return Ok(monitors);
 }
