@@ -7,10 +7,11 @@ edition = "2021"
 
 
 [dependencies]
-imagesize = "0.10"
+imagesize = "0.12"
+image = { version = "0.24", features = ["jpeg", "png"] } 
 # winit = "0.27.5"
-toml =  "0.5"
-windows = { version = "0.43", features = [
+toml = "0.8.10"
+windows = { version = "0.54", features = [
     "implement",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
@@ -21,14 +22,15 @@ windows = { version = "0.43", features = [
 ] }
 
 
-egui = "0.20"
-eframe = { version = "0.20", default-features = false, features = [
+egui = "0.26.2"
+eframe = { version = "0.26.2", default-features = false, features = [
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
 ] }
+egui_extras = { version = "0.26.2", features = ["all_loaders"] }
 
 serde = { version = "1", features = ["derive"] }
 trayicon = { version = "0.1", features = ["crossbeam-channel"] }
 crossbeam = "0.8.2"
-rfd = "0.10.0"
+rfd = "0.14.0"

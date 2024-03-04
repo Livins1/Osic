@@ -2,6 +2,7 @@
 
 mod data;
 mod ui;
+mod cache;
 
 use std;
 use std::ffi::{OsStr, OsString};

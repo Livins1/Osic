@@ -1,22 +1,36 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // if we add new fields, give them default values when deserializing old state
 use crossbeam::channel;
-use egui::{Color32, Layout, TextBuffer, WidgetText};
-use std::borrow::{Borrow, BorrowMut};
+use eframe::CreationContext;
+use egui::{
+    util, Color32, ColorImage, Image, ImageData, Layout, TextBuffer, TextureOptions, WidgetText,
+};
+use image::{imageops, GenericImageView, ImageBuffer, Rgb};
+use std::borrow::{Borrow, BorrowMut, Cow};
+use std::collections::VecDeque;
+use std::io::Read;
+use std::path::Path;
+use std::path::PathBuf;
+use std::str::Bytes;
 use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
+use std::thread::{self, panicking};
 use std::time::Duration;
+use windows::Win32::Foundation::NOERROR;
+// use image::ImageBuffer;
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
-use crate::data;
+use crate::cache::OsicRecentImage;
 use crate::data::config::AppConfig;
 use crate::data::monitor::Monitor;
+use crate::data::{self, monitor};
+use crate::{cache, utils};
 
 // const PAGES: Vec<&str> = Vec["Library", "Options", "Modes", "Exit"];
 
 const PAGES: &'static [&'static str] = &["Library", "Options", "Modes", "Exit"];
+const MODES: &'static [&'static str] = &["Picture", "SlidShow"];
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TrayMessage {
@@ -41,6 +55,108 @@ impl Pages {
             "Modes" => Pages::Modes,
             "Exit" => Pages::Exit,
             _ => Pages::Library,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Modes {
+    Picture,
+    SlidShow,
+}
+
+impl Modes {
+    fn find(mode: &str) -> Modes {
+        match mode {
+            "Picture" => Modes::Picture,
+            "SlidShow" => Modes::SlidShow,
+            _ => Modes::Picture,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MonitorWrapper {
+    label: String,
+    property: Monitor,
+    app_ctx: egui::Context,
+    mode: Modes,
+    image: Option<PathBuf>,
+    // recent_image: Option<Vec<PathBuf>>,
+    recent_images: Option<VecDeque<OsicRecentImage>>,
+    // image_buffer: Option<ImageData>,
+}
+
+impl MonitorWrapper {
+    fn new(monitor: Monitor, ctx: egui::Context) -> Self {
+        Self {
+            label: monitor.name.clone(),
+            app_ctx: ctx,
+            property: monitor,
+            mode: Modes::Picture,
+            image: None,
+            recent_images: None,
+        }
+    }
+
+    fn set_mode(&mut self, mode: Modes) {
+        self.mode = mode;
+    }
+
+    fn find_recent_image(&self, path: &PathBuf) -> Option<(usize, &OsicRecentImage)> {
+        if let Some(images) = &self.recent_images {
+            for (index, image) in images.into_iter().enumerate() {
+                if image.path.to_str().unwrap() == path.to_str().unwrap() {
+                    return Some((index, &image));
+                }
+            }
+        };
+        None
+    }
+
+    fn remove_recent_image(&mut self, path: &PathBuf) {
+        if let Some((index, _)) = self.find_recent_image(path) {
+            self.recent_images.as_mut().unwrap().remove(index);
+        }
+    }
+
+    fn new_recent_image(&mut self, i: OsicRecentImage) {
+        self.remove_recent_image(&i.path);
+        if let Some(images) = &mut self.recent_images {
+            if images.len() > 4 {
+                println!("images len :{}", images.len());
+                for _ in 0..images.len() - 4 {
+                    images.pop_back();
+                }
+            }
+            images.push_front(i);
+        } else {
+            self.recent_images = Some(VecDeque::from([i]));
+        }
+    }
+
+    fn set_picture(&mut self, picture: PathBuf) {
+        self.image = Some(picture.clone());
+
+        if let Ok(img) = cache::load_image_cache(&picture) {
+            let i = img.to_rgba8();
+            let t = utils::imgbuff_to_egui_imgdata(i);
+            let r = OsicRecentImage {
+                path: picture,
+                thumbnail: t.clone(),
+                thumbnail_texture: self.app_ctx.load_texture("", t, TextureOptions::default()),
+            };
+            self.new_recent_image(r);
+        } else {
+            let i = utils::gen_gallery(&picture, 100);
+            if let Ok(_) = cache::write_image_cache(&picture, &i) {
+                let t = utils::imgbuff_to_egui_imgdata(i);
+                self.new_recent_image(OsicRecentImage {
+                    path: picture,
+                    thumbnail: t.clone(),
+                    thumbnail_texture: self.app_ctx.load_texture("", t, TextureOptions::default()),
+                });
+            }
         }
     }
 }
@@ -70,16 +186,15 @@ pub struct App {
     // Example stuff:
     label: String,
     config: AppConfig,
-    page: Pages,
-    monitors: Vec<Monitor>,
+    monitors: Vec<MonitorWrapper>,
 
-    selected_monitor: Monitor,
-    selected_wp_path: String,
+    selected_monitor: usize,
     _tray_start: bool,
     _tray_icon: TrayIcon<TrayMessage>,
     _tray_icon_inner: Arc<RwLock<TrayIconInner>>,
 }
 struct TrayIconInner {
+    ctx: egui::Context,
     is_close: bool,
     is_visible: bool,
     tray_receiver: channel::Receiver<TrayMessage>,
@@ -103,18 +218,25 @@ impl App {
 
         // }
         configure_text_styles(&cc.egui_ctx);
+
+        egui_extras::install_image_loaders(&cc.egui_ctx);
+        let ctx = cc.egui_ctx.clone();
+
         println!("New App Created!");
+        let monitor_wrappers: Vec<MonitorWrapper> = monitors
+            .into_iter()
+            .map(|monitor| MonitorWrapper::new(monitor, ctx.clone()))
+            .collect();
 
         Self {
             label: "Label Stuff".to_string(),
-            page: Pages::Library,
-            selected_wp_path: String::from(""),
-            selected_monitor: monitors.first().unwrap().clone(),
-            monitors: monitors,
+            selected_monitor: 0,
+            monitors: monitor_wrappers,
             config: AppConfig::load_from_file(),
             _tray_start: false,
             _tray_icon: tray_icon,
             _tray_icon_inner: Arc::new(RwLock::new(TrayIconInner {
+                ctx: ctx,
                 is_close: false,
                 is_visible: true,
                 tray_receiver: tray_receiver,
@@ -136,10 +258,16 @@ impl App {
     fn get_close(&self) -> bool {
         self._tray_icon_inner.read().unwrap().is_close
     }
+    fn current_monitor(&mut self) -> &mut MonitorWrapper {
+        return self.monitors.get_mut(self.selected_monitor).unwrap();
+    }
+    fn current_monitor_unmut(&mut self) -> &MonitorWrapper {
+        return self.monitors.get(self.selected_monitor).unwrap();
+    }
 
-    fn tray_monitor(&mut self, ctx: egui::Context) {
+    fn tray_monitor(&mut self, ctx: &egui::Context) {
         let tray = self._tray_icon_inner.clone();
-
+        let v_id = ctx.viewport_id();
         thread::spawn(move || {
             let receiver = tray.read().unwrap().tray_receiver.clone();
             while let Ok(message) = receiver.recv() {
@@ -148,15 +276,55 @@ impl App {
                 match message {
                     TrayMessage::SettingsShow => {
                         tray.is_visible = true;
+                        tray.ctx
+                            .send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                        // tray.ctx
+                        //     .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                        // tray.ctx.send_viewport_cmd_to(v_id, egui::ViewportCommand::Minimized(false));
+
+                        tray.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                        tray.ctx.request_repaint();
                     }
                     TrayMessage::Exit => {
-                        tray.is_close = true;
+                        // tray.is_close = true;
+                        // ctx.send_viewport_cmd_to(v_id, egui::ViewportCommand::Close);
+                        // ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        // ctx.request_repaint_of(v_id);
+                        tray.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        tray.ctx.request_repaint();
+                        println!("exit!");
                     }
                     TrayMessage::OnIconDoubleClick => {
                         tray.is_visible = !tray.is_visible;
-                        ctx.request_repaint();
+                        println!("DoubleClick: {:?}", tray.is_visible);
+                        // ctx.send_viewport_cmd_to(
+                        //     v_id,
+                        //     egui::ViewportCommand::Maximized(tray.is_visible),
+                        // );
+                        // tray.ctx
+                        //     .send_viewport_cmd(egui::ViewportCommand::Visible(tray.is_visible));
+
+                        if tray.is_visible {
+                            // tray.ctx
+                            //     .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                            tray.ctx
+                                .send_viewport_cmd(egui::ViewportCommand::Visible(tray.is_visible));
+                        } else {
+                            // tray.ctx
+                            //     .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                            tray.ctx
+                                .send_viewport_cmd(egui::ViewportCommand::Visible(tray.is_visible));
+                        }
+                        tray.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                        tray.ctx.request_repaint();
+
+                        // ctx.request_repaint_of(v_id);
+                        // ctx.request_repaint();
                     }
-                    TrayMessage::OnIconClick => {}
+                    TrayMessage::OnIconClick => {
+
+                        // ctx.send_viewport_cmd(egui::ViewportCommand::);
+                    }
                 }
             }
         });
@@ -174,14 +342,20 @@ impl eframe::App for App {
     // fn save(&mut self, storage: &mut dyn eframe::Storage) {
     //     eframe::set_value(storage, eframe::APP_KEY, self);
     // }
-    fn on_close_event(&mut self) -> bool {
+
+    // Old version!
+    // fn on_close_event(&mut self) -> bool {
+    //     self.set_visible(false);
+    //     // self._tray_icon_inner
+
+    //     // self.is_close
+    // }
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.set_visible(false);
-        // self._tray_icon_inner
 
         self.config.save_to_toml();
 
-        self._tray_icon_inner.read().unwrap().is_close
-        // self.is_close
+        // self._tray_icon_inner.read().unwrap().is_close
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
@@ -197,79 +371,151 @@ impl eframe::App for App {
         // self.tray_message(_frame);
         if !self._tray_start {
             println!("Start Tray Event Monitor");
-            self.tray_monitor(ctx.clone());
+            self.tray_monitor(ctx);
             self._tray_start = true;
         }
 
-        if self.get_close() {
-            _frame.close();
-        }
+        // if self.get_close() {
+        //     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        // }
 
-        _frame.set_visible(self.get_visible());
+        // _frame.set_visible(self.get_visible())
+
+        // ctx.send_viewport_cmd(egui::ViewportCommand::Visible(self.get_visible()));
 
         egui::TopBottomPanel::top("TopPanel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 egui::Grid::new("Monitors")
                     .spacing([5.0, 5.0])
                     .show(ui, |ui| {
-                        for monitor in &self.monitors {
+                        for (index, monitor) in self.monitors.iter().enumerate() {
                             if ui
                                 .add(egui::SelectableLabel::new(
-                                    self.selected_monitor.device_id == monitor.device_id,
-                                    &monitor.name,
+                                    &self
+                                        .monitors
+                                        .get(self.selected_monitor)
+                                        .unwrap()
+                                        .property
+                                        .device_id
+                                        == &monitor.property.device_id,
+                                    &monitor.property.name,
                                 ))
                                 .clicked()
                             {
-                                self.selected_monitor = monitor.clone()
+                                self.selected_monitor = index
                             }
-                            // ui.selectable_label(
-                            //     self.selected_monitor.device_id == monitor.device_id,
-                            //     &monitor.name,
-                            // );
-                            // ui.end_row();
                         }
                     })
             })
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if ui.button("Add Path").clicked() {
-                if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                    println!("Get Path : {:?}", path.display().to_string());
-                    self.config.add_wp_dirs(path.display().to_string());
-                }
-            }
-            ui.with_layout(Layout::left_to_right(egui::Align::TOP), |ui| {
-                ui.style_mut().visuals.extreme_bg_color = Color32::BLACK;
-                ui.visuals_mut().selection.bg_fill = Color32::BLACK;
-                egui::ScrollArea::vertical()
-                    .max_height(200.0)
-                    .max_width(300.0)
-                    .auto_shrink([false; 2])
+            ui.vertical(|ui| {
+                egui::Grid::new("Monitors_Mode")
+                    .num_columns(2)
+                    .spacing([20.0, 5.0])
                     .show(ui, |ui| {
-                        ui.add_space(5.0);
-                        ui.horizontal_wrapped(|ui| {
-                            for wp_path in self.config.get_wp_dirs() {
-                                ui.add_space(5.0);
-                                let mut button = egui::Button::new(
-                                    RichText::new(wp_path).text_style(TextStyle::Body),
+                        ui.label("Modes:");
+                        for mode in MODES {
+                            if ui
+                                .radio(
+                                    Modes::find(mode) == self.current_monitor().mode,
+                                    mode.to_string(),
                                 )
-                                .frame(false)
-                                .wrap(true);
-
-                                if self.selected_wp_path.eq(wp_path) {
-                                    button = button.fill(Color32::from_white_alpha(10));
-                                }
-
-                                if ui.add(button).clicked() {
-                                    println!("clicked path, {}", wp_path);
-                                    self.selected_wp_path = wp_path.to_string();
-                                }
-                                ui.end_row();
+                                .clicked()
+                            {
+                                self.current_monitor().set_mode(Modes::find(mode))
                             }
-                        })
-                    })
-            });
+                        }
+                        ui.end_row();
+
+                        ui.label("Choose a photo:");
+                        if ui.button("Browse photos").clicked() {
+                            if let Some(p) = rfd::FileDialog::new()
+                                .add_filter("image", &["png", "jpg", "jpeg"])
+                                .pick_file()
+                            {
+                                // println!("PicturePath: {:?}", p.display().to_string());
+                                self.current_monitor().set_picture(p);
+                            }
+                        }
+                        ui.end_row();
+
+                        // TODO: Latesd photos.
+
+                        // TODO: Choose a fit for your desktop image.
+                        ui.end_row();
+                    });
+                let monitor = self.current_monitor_unmut();
+                ui.horizontal(|ui| {
+                    if let Some(images) = &monitor.recent_images {
+                        for image in images {
+                            // ui.image(&image.thumbnail_texture).;
+                            ui.add(egui::Image::new(&image.thumbnail_texture).rounding(5.0).max_size([100.0,100.0].into()));
+                        }
+                    }
+                });
+
+                // let p = image_path;
+                // ui.image("file://C:\\Users\\Administrator\\Pictures\\wallhaven-0p1lw3.jpg")
+                //     .with_new_rect(egui::Rect::from_min_max(
+                //         [30.0, 30.0].into(),
+                //         [50.0, 50.0].into(),
+                //     ));
+                // let rect =
+                //     egui::Rect::from_min_size(Default::default(), egui::Vec2::splat(100.0));
+                // egui::Image::new(
+                //     "file://C:\\Users\\Administrator\\Pictures\\wallhaven-0p1lw3.jpg",
+                // )
+
+                // .rounding(10.0)
+                // .maintain_aspect_ratio(false)
+                // // .fit_to_original_size(1.0)
+                // // .max_size([100.0,100.0].into())
+                // // .fit_to_fraction([1.0, 2.0].into())
+                // // .fit_to_exact_size([100.0, 100.0].into())
+                // .paint_at(ui,rect)
+                // }
+                ui.end_row();
+            })
+
+            // if ui.button("Add Path").clicked() {
+            //     if let Some(path) = rfd::FileDialog::new().pick_folder() {
+            //         println!("Get Path : {:?}", path.display().to_string());
+            //         self.config.add_wp_dirs(path.display().to_string());
+            //     }
+            // }
+            // ui.with_layout(Layout::left_to_right(egui::Align::TOP), |ui| {
+            //     ui.style_mut().visuals.extreme_bg_color = Color32::BLACK;
+            //     ui.visuals_mut().selection.bg_fill = Color32::BLACK;
+            //     egui::ScrollArea::vertical()
+            //         .max_height(200.0)
+            //         .max_width(300.0)
+            //         .auto_shrink([false; 2])
+            //         .show(ui, |ui| {
+            //             ui.add_space(5.0);
+            //             ui.horizontal_wrapped(|ui| {
+            //                 for wp_path in self.config.get_wp_dirs() {
+            //                     ui.add_space(5.0);
+            //                     let mut button = egui::Button::new(
+            //                         RichText::new(wp_path).text_style(TextStyle::Body),
+            //                     )
+            //                     .frame(false)
+            //                     .wrap(true);
+
+            //                     if self.selected_wp_path.eq(wp_path) {
+            //                         button = button.fill(Color32::from_white_alpha(10));
+            //                     }
+
+            //                     if ui.add(button).clicked() {
+            //                         println!("clicked path, {}", wp_path);
+            //                         self.selected_wp_path = wp_path.to_string();
+            //                     }
+            //                     ui.end_row();
+            //                 }
+            //             })
+            //         })
+            // });
 
             // .show(ui, |ui| {
             //     // ui.painter()
@@ -353,7 +599,13 @@ impl eframe::App for App {
 pub fn ui_init() {
     // let native_options = eframe::NativeOptions::default();
     let native_options = eframe::NativeOptions {
-        resizable: true,
+        // persist_window:true,
+        viewport: egui::ViewportBuilder::default()
+            .with_min_inner_size([580.0, 480.0])
+            .with_max_inner_size([580.0, 480.0])
+            .with_resizable(true)
+            .with_maximize_button(false),
+
         ..Default::default()
     };
 
@@ -376,7 +628,7 @@ pub fn ui_init() {
         .unwrap();
 
     if let Ok(monitors) = data::monitor::get_monitor_device_path() {
-        eframe::run_native(
+        let _ = eframe::run_native(
             "Osic-Windows",
             native_options,
             Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx, monitors))),
