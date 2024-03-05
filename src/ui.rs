@@ -1,12 +1,14 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // if we add new fields, give them default values when deserializing old state
 use crossbeam::channel;
+
 use crossbeam::epoch::Pointable;
 use egui::{
     util, vec2, Button, Color32, ColorImage, Image, ImageData, Layout, Margin, TextBuffer,
     TextureOptions, WidgetText,
 };
 use image::flat;
+use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut, Cow};
 use std::collections::VecDeque;
 use std::io::Read;
@@ -15,11 +17,12 @@ use std::path::PathBuf;
 use std::str::Bytes;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, panicking};
+use windows::Win32::Foundation::NOERROR;
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
-use crate::cache::OsicRecentImage;
+use crate::cache::{OsicMonitorSettings, OsicRecentImage};
 use crate::data::config::AppConfig;
 use crate::data::monitor::Monitor;
 use crate::data::{self, monitor};
@@ -58,7 +61,7 @@ pub enum TrayMessage {
 //     }
 // }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Modes {
     Picture,
     SlidShow,
@@ -76,7 +79,7 @@ impl Modes {
 
 // const FITS: &'static [&'static str] = &["Fill", "Fit", "Stretch", "Tile", "Center", "Span"];
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Fits {
     Fill,
     Fit,
@@ -102,14 +105,12 @@ impl Fits {
 #[derive(Clone)]
 pub struct MonitorWrapper {
     label: String,
-    property: Monitor,
     app_ctx: egui::Context,
-    mode: Modes,
-    image: Option<PathBuf>,
-    // recent_image: Option<Vec<PathBuf>>,
-    recent_images: Option<VecDeque<OsicRecentImage>>,
-    fit: Fits,
-    // image_buffer: Option<ImageData>,
+    pub property: Monitor,
+    pub mode: Modes,
+    pub image: Option<PathBuf>,
+    pub recent_images: Option<VecDeque<OsicRecentImage>>,
+    pub fit: Fits,
 }
 
 impl MonitorWrapper {
@@ -123,6 +124,35 @@ impl MonitorWrapper {
             recent_images: None,
             fit: Fits::Fill,
         }
+    }
+
+    fn from_cache(monitor: Monitor, ctx: egui::Context, settings: OsicMonitorSettings) -> Self {
+        let mut s = Self {
+            label: monitor.name.clone(),
+            app_ctx: ctx,
+            property: monitor,
+            mode: settings.mode,
+            image: settings.image,
+            recent_images: None,
+            fit: settings.fit,
+        };
+
+        if let Some(images) = settings.recent_images {
+            for img_path in images {
+                if let Ok(img) = cache::load_image_cache(&img_path) {
+                    let i = img.to_rgba8();
+                    let t = utils::imgbuff_to_egui_imgdata(i);
+                    let r = OsicRecentImage {
+                        path: img_path,
+                        thumbnail: t.clone(),
+                        thumbnail_texture: s.app_ctx.load_texture("", t, TextureOptions::default()),
+                    };
+                    s.new_recent_image(r);
+                }
+            }
+        }
+
+        return s;
     }
 
     fn set_mode(&mut self, mode: Modes) {
@@ -255,7 +285,10 @@ impl App {
         println!("New App Created!");
         let monitor_wrappers: Vec<MonitorWrapper> = monitors
             .into_iter()
-            .map(|monitor| MonitorWrapper::new(monitor, ctx.clone()))
+            .map(|monitor| match monitor.load_from_cache() {
+                Ok(s) => MonitorWrapper::from_cache(monitor, ctx.clone(), s),
+                Err(_) => MonitorWrapper::new(monitor, ctx.clone()),
+            })
             .collect();
 
         Self {
@@ -384,6 +417,10 @@ impl eframe::App for App {
         self.set_visible(false);
 
         self.config.save_to_toml();
+
+        for m in self.monitors.clone() {
+            cache::write_monitor_settings(m.into());
+        }
 
         // self._tray_icon_inner.read().unwrap().is_close
     }
@@ -580,25 +617,6 @@ impl eframe::App for App {
                         ui.add_space(ui.available_width() * 0.02);
                     });
                     ui.end_row();
-                    // ui.add_space(25.0);
-                    // ui.end_row();
-                    // ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    //     // egui::Button::new("Browse photos").min_size([120.0, 20])
-                    //     let button =
-                    //         ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
-
-                    //     if button.clicked() {
-                    //         if let Some(p) = rfd::FileDialog::new()
-                    //             .add_filter("image", &["png", "jpg", "jpeg"])
-                    //             .pick_file()
-                    //         {
-                    //             // println!("PicturePath: {:?}", p.display().to_string());
-                    //             // self.current_monitor().set_picture(p);
-                    //             monitor.set_picture(p);
-                    //         }
-                    //     }
-                    // });
-
 
 
                     // Choose fit

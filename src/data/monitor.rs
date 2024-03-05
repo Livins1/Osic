@@ -1,8 +1,10 @@
 use std::mem::zeroed;
 use std::ptr::null;
 
+use crate::cache::{self, OsicMonitorSettings};
 use crate::utils;
 use serde::de::value::Error;
+use serde::{Deserialize, Serialize};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{ERROR_SUCCESS, WIN32_ERROR};
 // use windows::Win32::Graphics::Gdi::QDC_ONLY_ACTIVE_PATHS;
@@ -16,7 +18,7 @@ use windows::Win32::Devices::Display::{
     DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ONLY_ACTIVE_PATHS,
 };
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Monitor {
     pub name: String,
     pub device_id: String,
@@ -28,13 +30,20 @@ pub struct Monitor {
     pub height: i32,
 }
 
+impl Monitor {
+    pub fn load_from_cache(&self) -> Result<OsicMonitorSettings, ()> {
+        cache::load_monitor_settings(self.device_id.clone())
+    }
+}
+
 pub fn get_monitor_device_path() -> Result<Vec<Monitor>, String> {
     let mut monitors: Vec<Monitor> = Vec::<Monitor>::new();
 
-    unsafe { if CoInitialize(None).is_err() {
-        return Err(String::from("COM:INIT:ERROR"));
-
-    } };
+    unsafe {
+        if CoInitialize(None).is_err() {
+            return Err(String::from("COM:INIT:ERROR"));
+        }
+    };
     unsafe {
         let wm =
             CoCreateInstance::<_, IDesktopWallpaper>(&DesktopWallpaper, None, CLSCTX_ALL).unwrap();
@@ -82,7 +91,6 @@ pub fn get_monitor_device_path() -> Result<Vec<Monitor>, String> {
     if WIN32_ERROR(ret.0) != ERROR_SUCCESS {
         // println!("GetDisplayConfigBufferSizes Failed: WIN32_ERROR({})", ret);
         return Err(format!("GetDisplayConfigBufferSizes WIN32 Error:{}", ret.0));
-
     }
 
     let ret = unsafe {
@@ -92,9 +100,7 @@ pub fn get_monitor_device_path() -> Result<Vec<Monitor>, String> {
             paths.as_mut_ptr(),
             &mut num_modes,
             modes.as_mut_ptr(),
-            None
-
-            // std::ptr::null_mut(),
+            None, // std::ptr::null_mut(),
         )
     };
     if WIN32_ERROR(ret.0) != ERROR_SUCCESS {

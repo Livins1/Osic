@@ -74,3 +74,9 @@ pub fn file_hash(path: &PathBuf) -> io::Result<String> {
     contents.hash(&mut hasher);
     Ok(format!("{:x}", hasher.finish()))
 }
+
+pub fn string_hash(s: String) -> io::Result<String> {
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    Ok(format!("{:x}", hasher.finish()))
+}

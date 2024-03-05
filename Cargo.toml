@@ -34,3 +34,4 @@ serde = { version = "1", features = ["derive"] }
 trayicon = { version = "0.1", features = ["crossbeam-channel"] }
 crossbeam = "0.8.2"
 rfd = "0.14.0"
+bincode = "1.3.3"

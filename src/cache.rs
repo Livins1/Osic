@@ -1,3 +1,6 @@
+use egui::{ImageData, TextureHandle};
+use image::{DynamicImage, ImageBuffer, ImageError};
+use serde::{Deserialize, Serialize};
 use std::{
     env,
     fs::{self, File, OpenOptions},
@@ -5,10 +8,10 @@ use std::{
     path::PathBuf,
 };
 
-use egui::{ImageData, TextureHandle};
-use image::{DynamicImage, ImageBuffer, ImageError};
-
-use crate::utils;
+use crate::{
+    ui::{Fits, Modes, MonitorWrapper},
+    utils,
+};
 
 fn os_temp_folder() -> PathBuf {
     let dir = env::temp_dir();
@@ -67,4 +70,64 @@ pub struct OsicRecentImage {
     pub path: PathBuf,
     pub thumbnail: ImageData,
     pub thumbnail_texture: TextureHandle,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OsicMonitorSettings {
+    pub device_id: String,
+    pub mode: Modes,
+    pub fit: Fits,
+    pub image: Option<PathBuf>,
+    pub recent_images: Option<Vec<PathBuf>>,
+}
+
+impl From<MonitorWrapper> for OsicMonitorSettings {
+    fn from(item: MonitorWrapper) -> Self {
+        let recent_images: Option<Vec<PathBuf>> = match item.recent_images {
+            Some(images) => {
+                Some(images.into_iter().map(|image| { return image.path}).collect())
+            },
+            None => None,
+        }; 
+
+        OsicMonitorSettings {
+            device_id: item.property.device_id,
+            mode: item.mode,
+            fit: item.fit,
+            image: item.image,
+            recent_images: recent_images,
+        }
+    }
+}
+
+pub fn write_monitor_settings(s: OsicMonitorSettings) -> Result<(), io::Error> {
+    let encode_struct = bincode::serialize(&s).unwrap();
+
+    let file_name = utils::string_hash(s.device_id).unwrap();
+    let mut file_path = os_temp_folder();
+    file_path.push(file_name);
+
+    if file_path.exists() {
+        fs::remove_file(&file_path)?;
+    };
+
+    fs::write(file_path, encode_struct)
+}
+
+pub fn load_monitor_settings(device_id: String) -> Result<OsicMonitorSettings, ()> {
+    let file_name = utils::string_hash(device_id).unwrap();
+    let mut file_path = os_temp_folder();
+    file_path.push(file_name);
+
+    if !file_path.exists() {
+        return Err(());
+    };
+
+    match fs::read(file_path) {
+        Ok(s) => {
+            let decoded_struct = bincode::deserialize(&s).unwrap();
+            return Ok(decoded_struct);
+        }
+        Err(_) => Err(()),
+    }
 }
