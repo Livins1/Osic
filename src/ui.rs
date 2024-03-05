@@ -1,11 +1,12 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // if we add new fields, give them default values when deserializing old state
 use crossbeam::channel;
-use eframe::CreationContext;
+use crossbeam::epoch::Pointable;
 use egui::{
-    util, Color32, ColorImage, Image, ImageData, Layout, TextBuffer, TextureOptions, WidgetText,
+    util, vec2, Button, Color32, ColorImage, Image, ImageData, Layout, Margin, TextBuffer,
+    TextureOptions, WidgetText,
 };
-use image::{imageops, GenericImageView, ImageBuffer, Rgb};
+use image::flat;
 use std::borrow::{Borrow, BorrowMut, Cow};
 use std::collections::VecDeque;
 use std::io::Read;
@@ -14,9 +15,6 @@ use std::path::PathBuf;
 use std::str::Bytes;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, panicking};
-use std::time::Duration;
-use windows::Win32::Foundation::NOERROR;
-// use image::ImageBuffer;
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
@@ -29,8 +27,9 @@ use crate::{cache, utils};
 
 // const PAGES: Vec<&str> = Vec["Library", "Options", "Modes", "Exit"];
 
-const PAGES: &'static [&'static str] = &["Library", "Options", "Modes", "Exit"];
+// const PAGES: &'static [&'static str] = &["Library", "Options", "Modes", "Exit"];
 const MODES: &'static [&'static str] = &["Picture", "SlidShow"];
+const FITS: &'static [&'static str] = &["Fill", "Fit", "Stretch", "Tile", "Center", "Span"];
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TrayMessage {
@@ -40,24 +39,24 @@ pub enum TrayMessage {
     Exit,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Pages {
-    Library,
-    Options,
-    Modes,
-    Exit,
-}
-impl Pages {
-    fn find(page: &str) -> Pages {
-        match page {
-            "Library" => Pages::Library,
-            "Options" => Pages::Options,
-            "Modes" => Pages::Modes,
-            "Exit" => Pages::Exit,
-            _ => Pages::Library,
-        }
-    }
-}
+// #[derive(Debug, PartialEq)]
+// pub enum Pages {
+//     Library,
+//     Options,
+//     Modes,
+//     Exit,
+// }
+// impl Pages {
+//     fn find(page: &str) -> Pages {
+//         match page {
+//             "Library" => Pages::Library,
+//             "Options" => Pages::Options,
+//             "Modes" => Pages::Modes,
+//             "Exit" => Pages::Exit,
+//             _ => Pages::Library,
+//         }
+//     }
+// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Modes {
@@ -75,6 +74,31 @@ impl Modes {
     }
 }
 
+// const FITS: &'static [&'static str] = &["Fill", "Fit", "Stretch", "Tile", "Center", "Span"];
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Fits {
+    Fill,
+    Fit,
+    Stretch,
+    Tile,
+    Center,
+    Span,
+}
+impl Fits {
+    fn find(mode: &str) -> Fits {
+        match mode {
+            "Fill" => Fits::Fill,
+            "Fit" => Fits::Fit,
+            "Stretch" => Fits::Stretch,
+            "Tile" => Fits::Tile,
+            "Center" => Fits::Center,
+            "Span" => Fits::Span,
+            _ => Fits::Fill,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct MonitorWrapper {
     label: String,
@@ -84,6 +108,7 @@ pub struct MonitorWrapper {
     image: Option<PathBuf>,
     // recent_image: Option<Vec<PathBuf>>,
     recent_images: Option<VecDeque<OsicRecentImage>>,
+    fit: Fits,
     // image_buffer: Option<ImageData>,
 }
 
@@ -96,6 +121,7 @@ impl MonitorWrapper {
             mode: Modes::Picture,
             image: None,
             recent_images: None,
+            fit: Fits::Fill,
         }
     }
 
@@ -174,6 +200,10 @@ fn configure_text_styles(ctx: &egui::Context) {
         (
             TextStyle::Name("Page".into()),
             FontId::new(23.0, Proportional),
+        ),
+        (
+            TextStyle::Name("Big Button".into()),
+            FontId::new(20.0, Proportional),
         ),
     ]
     .into();
@@ -383,101 +413,241 @@ impl eframe::App for App {
 
         // ctx.send_viewport_cmd(egui::ViewportCommand::Visible(self.get_visible()));
 
-        egui::TopBottomPanel::top("TopPanel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                egui::Grid::new("Monitors")
-                    .spacing([5.0, 5.0])
-                    .show(ui, |ui| {
-                        for (index, monitor) in self.monitors.iter().enumerate() {
-                            if ui
-                                .add(egui::SelectableLabel::new(
-                                    &self
-                                        .monitors
-                                        .get(self.selected_monitor)
-                                        .unwrap()
-                                        .property
-                                        .device_id
-                                        == &monitor.property.device_id,
-                                    &monitor.property.name,
-                                ))
-                                .clicked()
-                            {
-                                self.selected_monitor = index
+        egui::TopBottomPanel::top("TopPanel")
+            .show_separator_line(true)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    egui::Grid::new("Monitors")
+                        .spacing([5.0, 5.0])
+                        .show(ui, |ui| {
+                            for (index, monitor) in self.monitors.iter().enumerate() {
+                                if ui
+                                    .add(egui::SelectableLabel::new(
+                                        &self
+                                            .monitors
+                                            .get(self.selected_monitor)
+                                            .unwrap()
+                                            .property
+                                            .device_id
+                                            == &monitor.property.device_id,
+                                        &monitor.property.name,
+                                    ))
+                                    .clicked()
+                                {
+                                    self.selected_monitor = index
+                                }
                             }
-                        }
-                    })
-            })
-        });
+                        })
+                })
+            });
+
+        egui::TopBottomPanel::bottom("BottomPanel")
+            .show_separator_line(false)
+            .min_height(100.0)
+            .max_height(100.0)
+            // .max_height(200.0)
+            .show(ctx, |ui| {
+                ui.add_space(50.0);
+                ui.horizontal(|ui| {
+                    ui.set_max_height(100.0);
+                    ui.style_mut().spacing.button_padding = vec2(1.0, 8.0);
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::new(15.0, FontFamily::Proportional),
+                    );
+                    ui.columns(2, |cols| {
+                        cols[0].vertical_centered_justified(|ui| {
+                            ui.set_width(150.0);
+                            ui.set_height(100.0);
+                            let cencel_button =
+                                ui.add_sized([20.0, 20.0], egui::Button::new("Save & Minimize"));
+
+                            if cencel_button.clicked() {
+                                println!("Save& Minimize");
+                            }
+                        });
+                        cols[1].vertical_centered_justified(|ui| {
+                            ui.set_width(150.0);
+                            ui.set_height(100.0);
+                            let cencel_button =
+                                ui.add_sized([20.0, 20.0], egui::Button::new("Minimize"));
+
+                            if cencel_button.clicked() {
+                                println!("Minimize");
+                            }
+                        });
+                    });
+                });
+                // ui.add_space(ui.wi);
+
+                // ui.style_mut().text_styles.insert(
+                //     egui::TextStyle::Button,
+                //     egui::FontId::new(15.0, FontFamily::Proportional),
+                // );
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical(|ui| {
-                egui::Grid::new("Monitors_Mode")
-                    .num_columns(2)
-                    .spacing([20.0, 5.0])
-                    .show(ui, |ui| {
-                        ui.label("Modes:");
-                        for mode in MODES {
-                            if ui
-                                .radio(
-                                    Modes::find(mode) == self.current_monitor().mode,
-                                    mode.to_string(),
-                                )
-                                .clicked()
-                            {
-                                self.current_monitor().set_mode(Modes::find(mode))
-                            }
-                        }
-                        ui.end_row();
+            // ui.spacing_mut().item_spacing.y = 10.0;
 
-                        ui.label("Choose a photo:");
-                        if ui.button("Browse photos").clicked() {
-                            if let Some(p) = rfd::FileDialog::new()
-                                .add_filter("image", &["png", "jpg", "jpeg"])
-                                .pick_file()
-                            {
-                                // println!("PicturePath: {:?}", p.display().to_string());
-                                self.current_monitor().set_picture(p);
-                            }
-                        }
-                        ui.end_row();
+            egui::Grid::new("Monitors_Mode")
+                .num_columns(1)
+                .min_row_height(40.0)
+                // .spacing([10.0, 10.0])
+                .show(ui, |ui| {
+                    let monitor = self.current_monitor();
+                    ui.style_mut().spacing.button_padding = vec2(12.0, 6.0);
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::new(14.0, FontFamily::Proportional),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.add_space(ui.available_width() * 0.02);
+                        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_width(ui.available_width() * 0.7);
+                            ui.label(
+                                RichText::new("Personalize your background").color(Color32::WHITE),
+                            );
+                            ui.label(RichText::new("A picture background or slideshow background apply to single desktop.").font(FontId::proportional(14.0)));
+                        });
 
-                        // TODO: Latesd photos.
-
-                        // TODO: Choose a fit for your desktop image.
-                        ui.end_row();
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.set_width(ui.available_width() * 0.2);
+                            let m = monitor.mode.borrow_mut();
+                            egui::ComboBox::from_id_source("modes")
+                                .width(120.0)
+                                .selected_text(format!("{m:?}"))
+                                .show_ui(ui, |ui| {
+                                    for mode in MODES {
+                                        ui.selectable_value(m, Modes::find(mode), mode.to_string());
+                                    }
+                                });
+                        });
+                        ui.add_space(ui.available_width() * 0.02);
                     });
-                let monitor = self.current_monitor_unmut();
-                ui.horizontal(|ui| {
+                    ui.end_row();
+                    // ui.add_space(50.0);
+                    // ui.end_row();
+                    // Latesd photos.
                     if let Some(images) = &monitor.recent_images {
-                        for image in images {
-                            // ui.image(&image.thumbnail_texture).;
-                            ui.add(egui::Image::new(&image.thumbnail_texture).rounding(5.0).max_size([100.0,100.0].into()));
-                        }
+                        ui.horizontal(|ui| {
+                            // ui.set_height(90.0);
+                            ui.add_space(ui.available_width() * 0.02);
+                            ui.with_layout(egui::Layout::top_down(egui::Align::TOP), |ui| {
+                                ui.set_width(ui.available_width() * 0.7);
+                                ui.label(
+                                    RichText::new("Recent images")
+                                        .color(Color32::WHITE)
+                                );
+                                ui.horizontal(|ui| {
+                                        for image in images {
+                                            ui.add(
+                                                egui::Image::new(&image.thumbnail_texture)
+                                                    .rounding(5.0)
+                                                    .max_size([75.0, 75.0].into()),
+                                            );
+                                        }
+                                });
+
+                            });
+                        });
+                        ui.end_row();
+                        // ui.add_space(50.0);
                     }
+
+                    ui.add_space(40.0);
+                    ui.end_row();
+                    ui.horizontal(|ui| {
+                        ui.add_space(ui.available_width() * 0.02);
+                        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_width(ui.available_width() * 0.7);
+                            ui.label(RichText::new("Choose a photo").color(Color32::WHITE));
+                        });
+
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.set_width(ui.available_width() * 0.2);
+                            let button =
+                                ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
+
+                            if button.clicked() {
+                                if let Some(p) = rfd::FileDialog::new()
+                                    .add_filter("image", &["png", "jpg", "jpeg"])
+                                    .pick_file()
+                                {
+                                    monitor.set_picture(p);
+                                }
+                            }
+                        });
+                        ui.add_space(ui.available_width() * 0.02);
+                    });
+                    ui.end_row();
+                    // ui.add_space(25.0);
+                    // ui.end_row();
+                    // ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    //     // egui::Button::new("Browse photos").min_size([120.0, 20])
+                    //     let button =
+                    //         ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
+
+                    //     if button.clicked() {
+                    //         if let Some(p) = rfd::FileDialog::new()
+                    //             .add_filter("image", &["png", "jpg", "jpeg"])
+                    //             .pick_file()
+                    //         {
+                    //             // println!("PicturePath: {:?}", p.display().to_string());
+                    //             // self.current_monitor().set_picture(p);
+                    //             monitor.set_picture(p);
+                    //         }
+                    //     }
+                    // });
+
+
+
+                    // Choose fit
+                    ui.horizontal(|ui| {
+                        ui.add_space(ui.available_width() * 0.02);
+                        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_width(ui.available_width() * 0.7);
+                            ui.label(
+                                RichText::new("Choose a fit for your desktop image")
+                                    .color(Color32::WHITE),
+                            );
+                        });
+
+                        let fit = monitor.fit.borrow_mut();
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
+                            ui.set_width(ui.available_width() * 0.2);
+
+                            egui::ComboBox::from_label("")
+                                .width(120.0)
+                                .selected_text(format!("{fit:?}"))
+                                .show_ui(ui, |ui| {
+                                    for f in FITS {
+                                        ui.selectable_value(fit, Fits::find(f), f.to_string());
+                                    }
+                                });
+                        });
+                        ui.add_space(ui.available_width() * 0.02);
+                    });
+
+                    // ui.horizontal(|ui| {});
+                    ui.end_row();
                 });
 
-                // let p = image_path;
-                // ui.image("file://C:\\Users\\Administrator\\Pictures\\wallhaven-0p1lw3.jpg")
-                //     .with_new_rect(egui::Rect::from_min_max(
-                //         [30.0, 30.0].into(),
-                //         [50.0, 50.0].into(),
-                //     ));
-                // let rect =
-                //     egui::Rect::from_min_size(Default::default(), egui::Vec2::splat(100.0));
-                // egui::Image::new(
-                //     "file://C:\\Users\\Administrator\\Pictures\\wallhaven-0p1lw3.jpg",
-                // )
-
-                // .rounding(10.0)
-                // .maintain_aspect_ratio(false)
-                // // .fit_to_original_size(1.0)
-                // // .max_size([100.0,100.0].into())
-                // // .fit_to_fraction([1.0, 2.0].into())
-                // // .fit_to_exact_size([100.0, 100.0].into())
-                // .paint_at(ui,rect)
-                // }
-                ui.end_row();
-            })
+            // ui.with_layout(Layout::left_to_right(egui::Align::TOP), |ui| {
+            //     ui.horizontal(|ui| {
+            //         ui.spacing_mut().item_spacing.x = 5.0;
+            //         ui.label("Recent images :");
+            //         if let Some(images) = &monitor.recent_images {
+            //             for image in images {
+            //                 // ui.image(&image.thumbnail_texture).;
+            //                 ui.add(
+            //                     egui::Image::new(&image.thumbnail_texture)
+            //                         .rounding(5.0)
+            //                         .max_size([75.0, 75.0].into()),
+            //                 );
+            //             }
+            //         }
+            //     });
+            // });
 
             // if ui.button("Add Path").clicked() {
             //     if let Some(path) = rfd::FileDialog::new().pick_folder() {
