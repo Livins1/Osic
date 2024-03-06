@@ -11,10 +11,7 @@ use image::flat;
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut, Cow};
 use std::collections::VecDeque;
-use std::io::Read;
-use std::path::Path;
 use std::path::PathBuf;
-use std::str::Bytes;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, panicking};
 use windows::Win32::Foundation::NOERROR;
@@ -24,9 +21,11 @@ use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
 use crate::cache::{OsicMonitorSettings, OsicRecentImage};
 use crate::data::config::AppConfig;
-use crate::data::monitor::Monitor;
+// use crate::data::monitor::Monitor;
 use crate::data::{self, monitor};
-use crate::{cache, utils};
+use crate::win32::Monitor;
+use crate::win32::Win32API;
+use crate::{cache, utils, win32};
 
 // const PAGES: Vec<&str> = Vec["Library", "Options", "Modes", "Exit"];
 
@@ -106,6 +105,7 @@ impl Fits {
 pub struct MonitorWrapper {
     label: String,
     app_ctx: egui::Context,
+    win32: Arc<win32::Win32API>,
     pub property: Monitor,
     pub mode: Modes,
     pub image: Option<PathBuf>,
@@ -114,10 +114,11 @@ pub struct MonitorWrapper {
 }
 
 impl MonitorWrapper {
-    fn new(monitor: Monitor, ctx: egui::Context) -> Self {
+    fn new(monitor: Monitor, ctx: egui::Context, win32: Arc<Win32API>) -> Self {
         Self {
             label: monitor.name.clone(),
             app_ctx: ctx,
+            win32: win32,
             property: monitor,
             mode: Modes::Picture,
             image: None,
@@ -126,10 +127,16 @@ impl MonitorWrapper {
         }
     }
 
-    fn from_cache(monitor: Monitor, ctx: egui::Context, settings: OsicMonitorSettings) -> Self {
+    fn from_cache(
+        monitor: Monitor,
+        ctx: egui::Context,
+        win32: Arc<Win32API>,
+        settings: OsicMonitorSettings,
+    ) -> Self {
         let mut s = Self {
             label: monitor.name.clone(),
             app_ctx: ctx,
+            win32: win32,
             property: monitor,
             mode: settings.mode,
             image: settings.image,
@@ -191,8 +198,19 @@ impl MonitorWrapper {
         }
     }
 
+
     fn set_picture(&mut self, picture: PathBuf) {
+
+        if !self.image.is_none() && self.image.as_ref().unwrap().eq(&picture) {
+            println!("Same Picture");
+            return;
+        };
+
+
+        self.set_wallpaper(&picture);
+
         self.image = Some(picture.clone());
+
 
         if let Ok(img) = cache::load_image_cache(&picture) {
             let i = img.to_rgba8();
@@ -214,6 +232,12 @@ impl MonitorWrapper {
                 });
             }
         }
+    }
+
+    fn set_wallpaper(&self, path: &PathBuf) {
+        let _ = self
+            .win32
+            .set_wallpaper(&self.property.device_id, path.to_str().unwrap());
     }
 }
 
@@ -267,6 +291,7 @@ impl App {
         tray_icon: TrayIcon<TrayMessage>,
         tray_receiver: channel::Receiver<TrayMessage>,
         monitors: Vec<Monitor>,
+        win32: Arc<Win32API>,
     ) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
@@ -286,8 +311,8 @@ impl App {
         let monitor_wrappers: Vec<MonitorWrapper> = monitors
             .into_iter()
             .map(|monitor| match monitor.load_from_cache() {
-                Ok(s) => MonitorWrapper::from_cache(monitor, ctx.clone(), s),
-                Err(_) => MonitorWrapper::new(monitor, ctx.clone()),
+                Ok(s) => MonitorWrapper::from_cache(monitor, ctx.clone(), win32.clone(), s),
+                Err(_) => MonitorWrapper::new(monitor, ctx.clone(), win32.clone()),
             })
             .collect();
 
@@ -815,11 +840,13 @@ pub fn ui_init() {
         .build()
         .unwrap();
 
-    if let Ok(monitors) = data::monitor::get_monitor_device_path() {
+    let win32 = Win32API::new();
+
+    if let Ok(monitors) = win32.get_monitor_device_path() {
         let _ = eframe::run_native(
             "Osic-Windows",
             native_options,
-            Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx, monitors))),
+            Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx, monitors, Arc::new(win32)))),
         );
     }
 }

@@ -118,16 +118,6 @@ pub fn get_monitor_device_path() -> Result<Vec<Monitor>, String> {
 
         let result = unsafe { DisplayConfigGetDeviceInfo(&mut target_name.header) };
 
-        // let mut source_name: DISPLAYCONFIG_SOURCE_DEVICE_NAME = unsafe { std::mem::zeroed() };
-        // source_name.header.adapterId = path.targetInfo.adapterId;
-        // source_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
-        // source_name.header.size = std::mem::size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
-
-        // let result = unsafe { DisplayConfigGetDeviceInfo(&mut source_name.header) };
-        // if result != ERROR_SUCCESS as _ {
-        //     return Err(std::io::Error::last_os_error())
-        //         .context("DisplayConfigGetDeviceInfo DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME");
-        // }
         let name = utils::wstr(&target_name.monitorFriendlyDeviceName);
         let device_path = utils::wstr(&target_name.monitorDevicePath);
         for monitor in &mut monitors {
