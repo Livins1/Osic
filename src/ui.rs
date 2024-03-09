@@ -14,6 +14,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, panicking};
+use std::time::Duration;
 use windows::Win32::Foundation::NOERROR;
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
@@ -133,7 +134,7 @@ impl MonitorWrapper {
             recent_images: None,
             fit: Fits::Fill,
             album_path: None,
-            slide_interval: 0,
+            slide_interval: 30,
             slide_time: 0,
         }
     }
@@ -293,6 +294,8 @@ pub struct App {
     label: String,
     config: AppConfig,
     monitors: Vec<MonitorWrapper>,
+    tick: u64,
+    tick_interval: u64, 
 
     selected_monitor: usize,
     _tray_start: bool,
@@ -342,6 +345,8 @@ impl App {
             label: "Label Stuff".to_string(),
             selected_monitor: 0,
             monitors: monitor_wrappers,
+            tick: utils::get_sys_time_in_secs(),
+            tick_interval: 10,
             config: AppConfig::load_from_file(),
             _tray_start: false,
             _tray_icon: tray_icon,
@@ -494,6 +499,18 @@ impl App {
     }
 
 
+    // Some errors with egui,  waiting fix
+    // https://github.com/emilk/egui/issues/3972
+    fn reapint_tick(&self, ctx: &egui::Context) {
+        let interval = self.tick_interval;
+        let ctx = ctx.clone();
+        std::thread::spawn(move  || {
+            std::thread::sleep(Duration::from_secs(interval));
+            ctx.request_repaint();
+            println!("Timer Tick!");
+        });
+    }
+
 
     fn slide_show_active(&mut self) {
         let c_stamp = utils::get_sys_time_in_secs();
@@ -506,7 +523,6 @@ impl App {
                 }
             }
         }
-
     }
 }
 
@@ -544,6 +560,13 @@ impl eframe::App for App {
             self.tray_monitor(ctx);
             self._tray_start = true;
         }
+        let update_tick = utils::get_sys_time_in_secs();
+
+        if update_tick > self.tick + self.tick_interval {
+            self.tick = update_tick;
+            self.slide_show_active();
+            self.reapint_tick(ctx);
+        };
 
         egui::TopBottomPanel::top("TopPanel")
             .show_separator_line(true)
