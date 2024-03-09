@@ -78,7 +78,10 @@ pub struct OsicMonitorSettings {
     pub mode: Modes,
     pub fit: Fits,
     pub image: Option<PathBuf>,
+    pub album_path: Option<PathBuf>,
     pub recent_images: Option<Vec<PathBuf>>,
+    pub slide_interval: u64,
+    pub slide_time: u64,
 }
 
 impl From<MonitorWrapper> for OsicMonitorSettings {
@@ -93,9 +96,12 @@ impl From<MonitorWrapper> for OsicMonitorSettings {
         OsicMonitorSettings {
             device_id: item.property.device_id,
             mode: item.mode,
+            album_path: item.album_path,
             fit: item.fit,
             image: item.image,
             recent_images: recent_images,
+            slide_interval: item.slide_interval,
+            slide_time: item.slide_time,
         }
     }
 }

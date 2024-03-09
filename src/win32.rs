@@ -3,9 +3,9 @@ use windows::Win32::Foundation::{BOOL, FALSE, HWND, LPARAM, TRUE, WPARAM};
 use windows::core::{HSTRING, PCWSTR};
 
 use serde::{Deserialize, Serialize};
-use std::{clone, mem};
+// use std::{clone, mem};
 use std::mem::zeroed;
-use std::os::raw::c_void;
+// use std::os::raw::c_void;
 
 use windows::Win32::Devices::Display::{
     DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
@@ -18,30 +18,31 @@ use windows::Win32::UI::Shell::DesktopWallpaper;
 use windows::Win32::UI::Shell::IDesktopWallpaper;
 
 use crate::cache::{self, OsicMonitorSettings};
+use crate::ui::Fits;
 use crate::utils;
 
 #[derive(Clone)]
 pub struct Win32API {
     wm: IDesktopWallpaper,
-    workw: Option<Box<HWND>>,
+    // workw: Option<Box<HWND>>,
     com_err: bool,
 }
 // here: https://stackoverflow.com/questions/60292897/why-cant-i-send-mutexmut-c-void-between-threads
 unsafe impl Send for Win32API {}
 
-unsafe extern "system" fn enumerate_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    // let closure: &mut &mut dyn FnMut(HWND) -> bool = mem::transmute(lparam ) as *mut c_void as *mut _;
-    let closure: &mut &mut dyn FnMut(HWND) -> bool = {
-        // let c = lparam as *mut c_void;
-        let c: *mut c_void = mem::transmute(lparam);
-        &mut *(c as *mut _)
-    };
-    if closure(hwnd) {
-        TRUE
-    } else {
-        FALSE
-    }
-}
+// unsafe extern "system" fn enumerate_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+//     // let closure: &mut &mut dyn FnMut(HWND) -> bool = mem::transmute(lparam ) as *mut c_void as *mut _;
+//     let closure: &mut &mut dyn FnMut(HWND) -> bool = {
+//         // let c = lparam as *mut c_void;
+//         let c: *mut c_void = mem::transmute(lparam);
+//         &mut *(c as *mut _)
+//     };
+//     if closure(hwnd) {
+//         TRUE
+//     } else {
+//         FALSE
+//     }
+// }
 
 impl Win32API {
     pub fn new() -> Self {
@@ -51,7 +52,7 @@ impl Win32API {
                 .unwrap();
             Self {
                 wm,
-                workw: None,
+                // workw: None,
                 com_err,
             }
         }
@@ -68,6 +69,11 @@ impl Win32API {
                 PCWSTR::from_raw(HSTRING::from(wallpaper).as_ptr()),
             )
         }
+    }
+
+    pub fn set_fit(&self, fits: i32) -> Result<(), windows::core::Error> {
+        let i = windows::Win32::UI::Shell::DESKTOP_WALLPAPER_POSITION(fits);
+        unsafe { self.wm.SetPosition(i) }
     }
 
     pub fn get_monitor_device_path(&self) -> Result<Vec<Monitor>, String> {

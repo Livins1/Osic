@@ -80,3 +80,12 @@ pub fn string_hash(s: String) -> io::Result<String> {
     s.hash(&mut hasher);
     Ok(format!("{:x}", hasher.finish()))
 }
+
+use std::time::SystemTime;
+
+pub fn get_sys_time_in_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+}

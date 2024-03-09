@@ -74,18 +74,23 @@ impl Modes {
             _ => Modes::Picture,
         }
     }
+
+
+
 }
+
+    
 
 // const FITS: &'static [&'static str] = &["Fill", "Fit", "Stretch", "Tile", "Center", "Span"];
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Fits {
-    Fill,
-    Fit,
-    Stretch,
-    Tile,
-    Center,
-    Span,
+    Fill = 4,
+    Fit = 3,
+    Stretch = 2,
+    Tile = 1,
+    Center = 0,
+    Span = 5,
 }
 impl Fits {
     fn find(mode: &str) -> Fits {
@@ -107,10 +112,13 @@ pub struct MonitorWrapper {
     app_ctx: egui::Context,
     win32: Arc<win32::Win32API>,
     pub property: Monitor,
+    pub album_path: Option<PathBuf>,
     pub mode: Modes,
     pub image: Option<PathBuf>,
     pub recent_images: Option<VecDeque<OsicRecentImage>>,
     pub fit: Fits,
+    pub slide_interval: u64,
+    pub slide_time: u64,
 }
 
 impl MonitorWrapper {
@@ -124,6 +132,9 @@ impl MonitorWrapper {
             image: None,
             recent_images: None,
             fit: Fits::Fill,
+            album_path: None,
+            slide_interval: 0,
+            slide_time: 0,
         }
     }
 
@@ -138,10 +149,13 @@ impl MonitorWrapper {
             app_ctx: ctx,
             win32: win32,
             property: monitor,
+            album_path: settings.album_path,
             mode: settings.mode,
             image: settings.image,
             recent_images: None,
             fit: settings.fit,
+            slide_interval: settings.slide_interval,
+            slide_time: settings.slide_time,
         };
 
         if let Some(images) = settings.recent_images {
@@ -164,6 +178,10 @@ impl MonitorWrapper {
 
     fn set_mode(&mut self, mode: Modes) {
         self.mode = mode;
+    }
+
+    fn set_fits(&mut self, fit:Fits) {
+        let _ = self.win32.set_fit(fit as i32);
     }
 
     fn find_recent_image(&self, path: &PathBuf) -> Option<(usize, &OsicRecentImage)> {
@@ -198,19 +216,15 @@ impl MonitorWrapper {
         }
     }
 
-
     fn set_picture(&mut self, picture: PathBuf) {
-
         if !self.image.is_none() && self.image.as_ref().unwrap().eq(&picture) {
             println!("Same Picture");
             return;
         };
 
-
         self.set_wallpaper(&picture);
 
         self.image = Some(picture.clone());
-
 
         if let Ok(img) = cache::load_image_cache(&picture) {
             let i = img.to_rgba8();
@@ -234,10 +248,18 @@ impl MonitorWrapper {
         }
     }
 
+    fn set_album(&mut self, path: PathBuf) {
+        self.album_path = Some(path);
+    }
+
     fn set_wallpaper(&self, path: &PathBuf) {
         let _ = self
             .win32
             .set_wallpaper(&self.property.device_id, path.to_str().unwrap());
+    }
+
+    fn set_slide_time(&mut self, time_stamp_sec: u64) {
+        self.slide_time = time_stamp_sec;
     }
 }
 
@@ -349,6 +371,7 @@ impl App {
     fn current_monitor(&mut self) -> &mut MonitorWrapper {
         return self.monitors.get_mut(self.selected_monitor).unwrap();
     }
+
     fn current_monitor_unmut(&mut self) -> &MonitorWrapper {
         return self.monitors.get(self.selected_monitor).unwrap();
     }
@@ -423,6 +446,68 @@ impl App {
 
     //     while let Ok(message) = self.tray_receiver.recv() {}
     // }
+
+    fn ui_get_floder(&mut self, ui:&mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+            ui.set_width(ui.available_width() * 0.7);
+            ui.label(RichText::new("Choose a picture album for a slideshow").color(Color32::WHITE));
+        });
+
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_width(ui.available_width() * 0.2);
+            let button =
+                ui.add_sized([120.0, 20.0], egui::Button::new("Browse"));
+
+            if button.clicked() {
+                if let Some(p) = rfd::FileDialog::new()
+                    .pick_folder()
+                {
+                    self.current_monitor().set_album(p);
+
+                }
+            }
+        });
+    }
+
+    fn ui_get_picture(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+            ui.set_width(ui.available_width() * 0.7);
+            ui.label(RichText::new("Choose a photo").color(Color32::WHITE));
+        });
+
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_width(ui.available_width() * 0.2);
+            let button =
+                ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
+
+            if button.clicked() {
+                if let Some(p) = rfd::FileDialog::new()
+                    .add_filter("image", &["png", "jpg", "jpeg"])
+                    .pick_file()
+                {
+                    // monitor.set_picture(p);
+                    self.current_monitor().set_picture(p);
+
+                }
+            }
+        });
+    }
+
+
+
+    fn slide_show_active(&mut self) {
+        let c_stamp = utils::get_sys_time_in_secs();
+        for  monitor in &mut self.monitors {
+            if monitor.mode == Modes::SlidShow {
+                println!("Timer is {}", &c_stamp);
+                if c_stamp > monitor.slide_time + monitor.slide_interval {
+                    println!("SLide !");
+                    monitor.set_slide_time(c_stamp);
+                }
+            }
+        }
+
+    }
 }
 
 impl eframe::App for App {
@@ -444,7 +529,7 @@ impl eframe::App for App {
         self.config.save_to_toml();
 
         for m in self.monitors.clone() {
-            cache::write_monitor_settings(m.into());
+            let _ = cache::write_monitor_settings(m.into());
         }
 
         // self._tray_icon_inner.read().unwrap().is_close
@@ -453,27 +538,12 @@ impl eframe::App for App {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // let Self {  } = self;
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        // tray_polling
-        // self.tray_message(_frame);
         if !self._tray_start {
             println!("Start Tray Event Monitor");
             self.tray_monitor(ctx);
             self._tray_start = true;
         }
-
-        // if self.get_close() {
-        //     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        // }
-
-        // _frame.set_visible(self.get_visible())
-
-        // ctx.send_viewport_cmd(egui::ViewportCommand::Visible(self.get_visible()));
 
         egui::TopBottomPanel::top("TopPanel")
             .show_separator_line(true)
@@ -556,7 +626,7 @@ impl eframe::App for App {
                 .min_row_height(40.0)
                 // .spacing([10.0, 10.0])
                 .show(ui, |ui| {
-                    let monitor = self.current_monitor();
+                    // let monitor = self.current_monitor_unmut();
                     ui.style_mut().spacing.button_padding = vec2(12.0, 6.0);
                     ui.style_mut().text_styles.insert(
                         egui::TextStyle::Button,
@@ -574,13 +644,13 @@ impl eframe::App for App {
 
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             ui.set_width(ui.available_width() * 0.2);
-                            let m = monitor.mode.borrow_mut();
+                            let m = &self.current_monitor().mode;
                             egui::ComboBox::from_id_source("modes")
                                 .width(120.0)
                                 .selected_text(format!("{m:?}"))
                                 .show_ui(ui, |ui| {
                                     for mode in MODES {
-                                        ui.selectable_value(m, Modes::find(mode), mode.to_string());
+                                        ui.selectable_value(&mut self.current_monitor().mode, Modes::find(mode), mode.to_string());
                                     }
                                 });
                         });
@@ -590,7 +660,7 @@ impl eframe::App for App {
                     // ui.add_space(50.0);
                     // ui.end_row();
                     // Latesd photos.
-                    if let Some(images) = &monitor.recent_images {
+                    if let Some(images) = &self.current_monitor().recent_images {
                         ui.horizontal(|ui| {
                             // ui.set_height(90.0);
                             ui.add_space(ui.available_width() * 0.02);
@@ -620,25 +690,37 @@ impl eframe::App for App {
                     ui.end_row();
                     ui.horizontal(|ui| {
                         ui.add_space(ui.available_width() * 0.02);
-                        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                            ui.set_width(ui.available_width() * 0.7);
-                            ui.label(RichText::new("Choose a photo").color(Color32::WHITE));
-                        });
+                        match self.current_monitor().mode {
+                            Modes::Picture => {
+                                self.ui_get_picture(ui);
 
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.set_width(ui.available_width() * 0.2);
-                            let button =
-                                ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
-
-                            if button.clicked() {
-                                if let Some(p) = rfd::FileDialog::new()
-                                    .add_filter("image", &["png", "jpg", "jpeg"])
-                                    .pick_file()
-                                {
-                                    monitor.set_picture(p);
-                                }
+                            },Modes::SlidShow => {
+                                self.ui_get_floder(ui);
                             }
-                        });
+
+
+                        }
+
+
+                        // ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        //     ui.set_width(ui.available_width() * 0.7);
+                        //     ui.label(RichText::new("Choose a photo").color(Color32::WHITE));
+                        // });
+
+                        // ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        //     ui.set_width(ui.available_width() * 0.2);
+                        //     let button =
+                        //         ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
+
+                        //     if button.clicked() {
+                        //         if let Some(p) = rfd::FileDialog::new()
+                        //             .add_filter("image", &["png", "jpg", "jpeg"])
+                        //             .pick_file()
+                        //         {
+                        //             monitor.set_picture(p);
+                        //         }
+                        //     }
+                        // });
                         ui.add_space(ui.available_width() * 0.02);
                     });
                     ui.end_row();
@@ -655,16 +737,23 @@ impl eframe::App for App {
                             );
                         });
 
-                        let fit = monitor.fit.borrow_mut();
+                        // let fit = monitor.fit.borrow_mut();
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
                             ui.set_width(ui.available_width() * 0.2);
+
+                            let fit = &self.current_monitor().fit;
 
                             egui::ComboBox::from_label("")
                                 .width(120.0)
                                 .selected_text(format!("{fit:?}"))
                                 .show_ui(ui, |ui| {
+
                                     for f in FITS {
-                                        ui.selectable_value(fit, Fits::find(f), f.to_string());
+
+                                        if ui.selectable_value(&mut self.current_monitor().fit, Fits::find(f), f.to_string()).clicked() {
+                                            // println!("{:?}", fit);
+                                            self.current_monitor().set_fits(Fits::find(f));
+                                        }; 
                                     }
                                 });
                         });
