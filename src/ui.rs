@@ -42,25 +42,6 @@ pub enum TrayMessage {
     Exit,
 }
 
-// #[derive(Debug, PartialEq)]
-// pub enum Pages {
-//     Library,
-//     Options,
-//     Modes,
-//     Exit,
-// }
-// impl Pages {
-//     fn find(page: &str) -> Pages {
-//         match page {
-//             "Library" => Pages::Library,
-//             "Options" => Pages::Options,
-//             "Modes" => Pages::Modes,
-//             "Exit" => Pages::Exit,
-//             _ => Pages::Library,
-//         }
-//     }
-// }
-
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Modes {
     Picture,
@@ -296,6 +277,7 @@ pub struct App {
     monitors: Vec<MonitorWrapper>,
     tick: u64,
     tick_interval: u64, 
+    tick_status: bool,
 
     selected_monitor: usize,
     _tray_start: bool,
@@ -347,6 +329,7 @@ impl App {
             monitors: monitor_wrappers,
             tick: utils::get_sys_time_in_secs(),
             tick_interval: 10,
+            tick_status: false,
             config: AppConfig::load_from_file(),
             _tray_start: false,
             _tray_icon: tray_icon,
@@ -505,9 +488,11 @@ impl App {
         let interval = self.tick_interval;
         let ctx = ctx.clone();
         std::thread::spawn(move  || {
-            std::thread::sleep(Duration::from_secs(interval));
-            ctx.request_repaint();
-            println!("Timer Tick!");
+            loop {
+                std::thread::sleep(Duration::from_secs(interval));
+                ctx.request_repaint();
+                println!("Timer Tick!");
+            }
         });
     }
 
@@ -518,7 +503,7 @@ impl App {
             if monitor.mode == Modes::SlidShow {
                 println!("Timer is {}", &c_stamp);
                 if c_stamp > monitor.slide_time + monitor.slide_interval {
-                    println!("SLide !");
+                    println!("SLide !  interval: {}", monitor.slide_interval);
                     monitor.set_slide_time(c_stamp);
                 }
             }
@@ -527,10 +512,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    /// Called by the frame work to save state before shutdown.
-    // fn save(&mut self, storage: &mut dyn eframe::Storage) {
-    //     eframe::set_value(storage, eframe::APP_KEY, self);
-    // }
+
 
     // Old version!
     // fn on_close_event(&mut self) -> bool {
@@ -562,10 +544,16 @@ impl eframe::App for App {
         }
         let update_tick = utils::get_sys_time_in_secs();
 
+
+        if !self.tick_status {
+            self.reapint_tick(ctx);
+            self.tick_status = true;
+        }
+
         if update_tick > self.tick + self.tick_interval {
             self.tick = update_tick;
             self.slide_show_active();
-            self.reapint_tick(ctx);
+            // self.reapint_tick(ctx);
         };
 
         egui::TopBottomPanel::top("TopPanel")
