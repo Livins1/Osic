@@ -4,6 +4,7 @@ mod data;
 mod ui;
 mod cache;
 mod win32;
+mod selector;
 
 use std;
 use std::ffi::{OsStr, OsString};

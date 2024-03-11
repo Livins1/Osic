@@ -11,6 +11,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_extras",
+ "fastrand",
  "image",
  "imagesize",
  "rfd",
