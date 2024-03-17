@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::{
+    selector::OsicSlideSelector,
     ui::{Fits, Modes, MonitorWrapper},
     utils,
 };
@@ -82,16 +83,15 @@ pub struct OsicMonitorSettings {
     pub recent_images: Option<Vec<PathBuf>>,
     pub slide_interval: u64,
     pub slide_time: u64,
+    pub selector: OsicSlideSelector,
 }
 
 impl From<MonitorWrapper> for OsicMonitorSettings {
     fn from(item: MonitorWrapper) -> Self {
         let recent_images: Option<Vec<PathBuf>> = match item.recent_images {
-            Some(images) => {
-                Some(images.into_iter().map(|image| { return image.path}).collect())
-            },
+            Some(images) => Some(images.into_iter().map(|image| return image.path).collect()),
             None => None,
-        }; 
+        };
 
         OsicMonitorSettings {
             device_id: item.property.device_id,
@@ -102,6 +102,7 @@ impl From<MonitorWrapper> for OsicMonitorSettings {
             recent_images: recent_images,
             slide_interval: item.slide_interval,
             slide_time: item.slide_time,
+            selector: item.selector,
         }
     }
 }

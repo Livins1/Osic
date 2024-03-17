@@ -1,7 +1,9 @@
 use image::ImageFormat;
+use serde::{Deserialize, Serialize};
 use std::{
     alloc::System,
     borrow::{Borrow, BorrowMut},
+    clone,
     path::PathBuf,
     time::SystemTime,
 };
@@ -13,7 +15,7 @@ fn is_image_file(path: &PathBuf) -> bool {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OsicImageWrapper {
     pub path: PathBuf,
     pub width: u32,
@@ -31,13 +33,13 @@ impl OsicImageWrapper {
     }
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
 pub struct OsicSlideSelector {
     pub path: PathBuf,
     pub shuffle: bool,
     pub ratio_value: f32,
     pub ratio: bool,
     pub ratio_range: f32,
-
     pictures: Option<Vec<OsicImageWrapper>>,
     ratio_pool: Vec<usize>,
     wallpaper_index: usize,
@@ -50,13 +52,20 @@ impl OsicSlideSelector {
 
     fn set_ratio(&mut self, keep_ratio: bool) {
         self.ratio = keep_ratio;
+        let _ = self.refresh_ratio_pool();
     }
 
-    fn set_album_path(&mut self, p: PathBuf) {
-        self.path = p;
+    pub fn set_album_path(&mut self, p: PathBuf) {
+        self.new_settings(
+            p,
+            self.shuffle,
+            self.ratio,
+            self.ratio_value,
+            self.ratio_range,
+        );
     }
 
-    fn new_settings(
+    pub fn new_settings(
         &mut self,
         path: PathBuf,
         shuffle: bool,
@@ -75,10 +84,7 @@ impl OsicSlideSelector {
 
         self.ratio_value = ratio_value;
         self.ratio_range = ratio_range;
-
-        if ratio {
-            self.refresh_ratio_pool();
-        }
+        self.refresh_ratio_pool();
     }
 
     fn get_picture(&self, index: usize) -> Option<OsicImageWrapper> {
@@ -147,6 +153,9 @@ impl OsicSlideSelector {
     }
 
     fn refresh_ratio_pool(&mut self) -> usize {
+        if !self.ratio {
+            return 0;
+        };
         self.ratio_pool.clear();
 
         if let Some(ps) = &self.pictures {
@@ -156,7 +165,7 @@ impl OsicSlideSelector {
                 .filter(|(index, p)| {
                     OsicSlideSelector::ratio_check(p, self.ratio_value, self.ratio_range)
                 })
-                .map(|(index, p)| self.ratio_pool.push(index))
+                .map(|(index, _)| self.ratio_pool.push(index))
                 .count();
         }
 

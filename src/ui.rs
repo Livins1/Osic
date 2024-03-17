@@ -24,6 +24,7 @@ use crate::cache::{OsicMonitorSettings, OsicRecentImage};
 use crate::data::config::AppConfig;
 // use crate::data::monitor::Monitor;
 use crate::data::{self, monitor};
+use crate::selector::{self, OsicSlideSelector};
 use crate::win32::Monitor;
 use crate::win32::Win32API;
 use crate::{cache, utils, win32};
@@ -56,12 +57,7 @@ impl Modes {
             _ => Modes::Picture,
         }
     }
-
-
-
 }
-
-    
 
 // const FITS: &'static [&'static str] = &["Fill", "Fit", "Stretch", "Tile", "Center", "Span"];
 
@@ -101,10 +97,13 @@ pub struct MonitorWrapper {
     pub fit: Fits,
     pub slide_interval: u64,
     pub slide_time: u64,
+    pub selector: OsicSlideSelector,
 }
 
 impl MonitorWrapper {
     fn new(monitor: Monitor, ctx: egui::Context, win32: Arc<Win32API>) -> Self {
+
+
         Self {
             label: monitor.name.clone(),
             app_ctx: ctx,
@@ -117,6 +116,7 @@ impl MonitorWrapper {
             album_path: None,
             slide_interval: 30,
             slide_time: 0,
+            selector: OsicSlideSelector::default(),
         }
     }
 
@@ -129,6 +129,7 @@ impl MonitorWrapper {
         let mut s = Self {
             label: monitor.name.clone(),
             app_ctx: ctx,
+
             win32: win32,
             property: monitor,
             album_path: settings.album_path,
@@ -138,6 +139,7 @@ impl MonitorWrapper {
             fit: settings.fit,
             slide_interval: settings.slide_interval,
             slide_time: settings.slide_time,
+            selector: settings.selector,
         };
 
         if let Some(images) = settings.recent_images {
@@ -231,6 +233,7 @@ impl MonitorWrapper {
     }
 
     fn set_album(&mut self, path: PathBuf) {
+        self.selector.set_album_path(path.clone());
         self.album_path = Some(path);
     }
 
@@ -360,9 +363,9 @@ impl App {
         return self.monitors.get_mut(self.selected_monitor).unwrap();
     }
 
-    fn current_monitor_unmut(&mut self) -> &MonitorWrapper {
-        return self.monitors.get(self.selected_monitor).unwrap();
-    }
+    // fn current_monitor_unmut(&mut self) -> &MonitorWrapper {
+    //     return self.monitors.get(self.selected_monitor).unwrap();
+    // }
 
     fn tray_monitor(&mut self, ctx: &egui::Context) {
         let tray = self._tray_icon_inner.clone();
