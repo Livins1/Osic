@@ -1,3 +1,4 @@
+use egui::{pos2, Color32, Rect, RichText};
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -37,9 +38,11 @@ impl OsicImageWrapper {
 pub struct OsicSlideSelector {
     pub path: PathBuf,
     pub shuffle: bool,
+    // the ratio of monitor
     pub ratio_value: f32,
     pub ratio: bool,
     pub ratio_range: f32,
+    ratio_range_ui: f32,
     pictures: Option<Vec<OsicImageWrapper>>,
     ratio_pool: Vec<usize>,
     wallpaper_index: usize,
@@ -52,6 +55,10 @@ impl OsicSlideSelector {
 
     fn set_ratio(&mut self, keep_ratio: bool) {
         self.ratio = keep_ratio;
+        let _ = self.refresh_ratio_pool();
+    }
+    fn set_ratio_range(&mut self, range: f32) {
+        self.ratio_range = range;
         let _ = self.refresh_ratio_pool();
     }
 
@@ -153,9 +160,11 @@ impl OsicSlideSelector {
     }
 
     fn refresh_ratio_pool(&mut self) -> usize {
-        if !self.ratio {
+        if !self.ratio || self.pictures.is_none() {
             return 0;
         };
+
+
         self.ratio_pool.clear();
 
         if let Some(ps) = &self.pictures {
@@ -200,5 +209,81 @@ impl OsicSlideSelector {
             }
         };
         return n;
+    }
+
+    pub fn ui(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+            ui.set_width(ui.available_width() * 0.3);
+            ui.label(RichText::new("Selector settings").color(Color32::WHITE));
+        });
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.set_width(ui.available_width() * 0.7);
+            ui.set_height(25.0);
+            ui.add_space(40.0);
+            // let button = ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
+
+            ui.columns(3, |cols| {
+                cols[0].vertical_centered_justified(|ui| {
+                    ui.set_width(75.0);
+                    // ui.set_height(100.0);
+                    ui.with_layout(
+                        egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                        |ui| {
+                            if ui
+                                .checkbox(&mut self.shuffle, "Shuffle")
+                                .on_hover_text("Shuffle the picture order")
+                                .clicked()
+                            {
+                                println!("Shuffle clicked")
+                            };
+                        },
+                    );
+
+                    // ui.add_space(25.0);
+                });
+                cols[1].vertical_centered_justified(|ui| {
+                    ui.set_width(75.0);
+                    // ui.set_height(100.0);
+                    ui.with_layout(
+                        egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                        |ui| ui.checkbox(&mut self.ratio, "Ratio"),
+                    );
+                    // ui.add_space(25.0);
+                });
+                if self.ratio {
+                    cols[2].vertical_centered_justified(|ui| {
+                        // ui.set_width(50.0);
+                        let i = ui.add(
+                            egui::DragValue::new(&mut self.ratio_range_ui)
+                                .clamp_range(0.0..=0.1)
+                                .custom_formatter(|n, _| format!("{:.2}", n))
+                                .speed(0.002),
+                        );
+                        if i.lost_focus() || i.drag_released() {
+                            if self.ratio_range_ui != self.ratio_range {
+                                self.set_ratio_range(self.ratio_range_ui);
+                            }
+                        }
+                        // if i.drag_released() {
+                        //     if self.ratio_range_ui != self.ratio_range {
+                        //         self.set_ratio_range(self.ratio_range_ui);
+                        //     }
+                        // }
+
+                        // ui.set_height(100.0);
+                    });
+                }
+            });
+            // if button.clicked() {
+            //     if let Some(p) = rfd::FileDialog::new()
+            //         .add_filter("image", &["png", "jpg", "jpeg"])
+            //         .pick_file()
+            //     {
+            //         // monitor.set_picture(p);
+            //         // self.current_monitor().set_picture(p);
+            //     }
+            // }
+        });
     }
 }
