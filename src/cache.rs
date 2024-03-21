@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     selector::OsicSlideSelector,
-    ui::{Fits, Modes, MonitorWrapper},
+    ui::{Fits, Interval, Modes, MonitorWrapper},
     utils,
 };
 
@@ -81,7 +81,7 @@ pub struct OsicMonitorSettings {
     pub image: Option<PathBuf>,
     pub album_path: Option<PathBuf>,
     pub recent_images: Option<Vec<PathBuf>>,
-    pub slide_interval: u64,
+    pub slide_interval: Interval,
     pub slide_time: u64,
     pub selector: OsicSlideSelector,
 }

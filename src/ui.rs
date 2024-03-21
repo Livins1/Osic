@@ -34,6 +34,8 @@ use crate::{cache, utils, win32};
 // const PAGES: &'static [&'static str] = &["Library", "Options", "Modes", "Exit"];
 const MODES: &'static [&'static str] = &["Picture", "SlidShow"];
 const FITS: &'static [&'static str] = &["Fill", "Fit", "Stretch", "Tile", "Center", "Span"];
+const INTERVAL: &'static [&'static str] =
+    &["1 minute", "10 minutes", "30 minutes", "1 hour", "6 hour"];
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TrayMessage {
@@ -84,6 +86,48 @@ impl Fits {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum Interval {
+    OneMinute,
+    TenMinutes,
+    ThirtyMinutes,
+    OneHour,
+    SixHours,
+}
+
+impl Interval {
+    fn find(i: &str) -> Interval {
+        match i {
+            "1 minute" => Interval::OneMinute,
+            "10 minutes" => Interval::TenMinutes,
+            "30 minutes" => Interval::ThirtyMinutes,
+            "1 hour" => Interval::OneHour,
+            "6 hour" => Interval::SixHours,
+            _ => Interval::TenMinutes,
+        }
+    }
+
+    fn seconds(i: &Interval) -> u64 {
+        match i {
+            Interval::OneMinute => 60,
+            Interval::TenMinutes => 600,
+            Interval::ThirtyMinutes => 60 * 30,
+            Interval::OneHour => 60 * 60,
+            Interval::SixHours => 60 * 60 * 6,
+        }
+    }
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            Interval::OneMinute => "1 minute",
+            Interval::TenMinutes => "10 minutes",
+            Interval::ThirtyMinutes => "30 minutes",
+            Interval::OneHour => "1 hour",
+            Interval::SixHours => "6 hours",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct MonitorWrapper {
     label: String,
@@ -95,7 +139,7 @@ pub struct MonitorWrapper {
     pub image: Option<PathBuf>,
     pub recent_images: Option<VecDeque<OsicRecentImage>>,
     pub fit: Fits,
-    pub slide_interval: u64,
+    pub slide_interval: Interval,
     pub slide_time: u64,
     pub selector: OsicSlideSelector,
 }
@@ -112,7 +156,7 @@ impl MonitorWrapper {
             recent_images: None,
             fit: Fits::Fill,
             album_path: None,
-            slide_interval: 30,
+            slide_interval: Interval::TenMinutes,
             slide_time: 0,
             selector: OsicSlideSelector::default(),
         }
@@ -243,6 +287,37 @@ impl MonitorWrapper {
 
     fn set_slide_time(&mut self, time_stamp_sec: u64) {
         self.slide_time = time_stamp_sec;
+    }
+
+    fn set_slide_interval(&mut self, interval: Interval) {
+        // self.slide_time = time_stamp_sec;
+        self.slide_interval = interval;
+    }
+
+    fn ui_set_interval(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+            ui.set_width(ui.available_width() * 0.7);
+            ui.label(RichText::new("Change picture every").color(Color32::WHITE));
+        });
+
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
+            ui.set_width(ui.available_width() * 0.2);
+            // ui.set_height(25.0);
+            // ui.add_space(40.0);
+            let m = &self.slide_interval;
+            egui::ComboBox::from_id_source("interval_combobox")
+                .width(120.0)
+                .selected_text(m.as_str())
+                .show_ui(ui, |ui| {
+                    for i in INTERVAL {
+                        ui.selectable_value(
+                            &mut self.slide_interval,
+                            Interval::find(i),
+                            i.to_string(),
+                        );
+                    }
+                })
+        });
     }
 }
 
@@ -510,8 +585,8 @@ impl App {
         for monitor in &mut self.monitors {
             if monitor.mode == Modes::SlidShow {
                 println!("Timer is {}", &c_stamp);
-                if c_stamp > monitor.slide_time + monitor.slide_interval {
-                    println!("SLide !  interval: {}", monitor.slide_interval);
+                if c_stamp > monitor.slide_time + Interval::seconds(&monitor.slide_interval) {
+                    // println!("SLide !  interval: {}", monitor.slide_interval as u64);
                     monitor.set_slide_time(c_stamp);
                 }
             }
@@ -764,6 +839,12 @@ impl eframe::App for App {
                     match self.current_monitor().mode {
                         Modes::Picture => {}
                         Modes::SlidShow => {
+                            ui.horizontal(|ui| {
+                                ui.add_space(ui.available_width() * 0.02);
+                                self.current_monitor().ui_set_interval(ui);
+                                ui.add_space(ui.available_width() * 0.02);
+                            });
+                            ui.end_row();
                             ui.horizontal(|ui| {
                                 ui.add_space(ui.available_width() * 0.02);
                                 self.current_monitor().selector.ui(ui);
