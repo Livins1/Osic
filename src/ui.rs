@@ -454,7 +454,7 @@ impl App {
                         RichText::new(self.current_monitor().selector.path.to_str().unwrap())
                             .font(FontId::proportional(13.0)),
                     );
-                    ui.add_space((ui.available_width() * 0.05));
+                    ui.add_space(ui.available_width() * 0.05);
                 }
             })
         });
@@ -681,7 +681,7 @@ impl eframe::App for App {
                     // ui.end_row();
                     // Latesd photos.
 
-                    ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui| {
                         ui.add_space(ui.available_width() * 0.02);
                         match self.current_monitor().mode {
                             Modes::Picture => {
