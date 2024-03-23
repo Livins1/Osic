@@ -2,8 +2,7 @@
 a Wallpaper related tool
 
 # State
-The materials are being prepared
-
+WIP
 
 ## Feature
 #### self-adaptation by wallpaper's reselution for more than one monitor.  
