@@ -146,6 +146,7 @@ pub struct MonitorWrapper {
 
 impl MonitorWrapper {
     fn new(monitor: Monitor, ctx: egui::Context, win32: Arc<Win32API>) -> Self {
+        let ratio_value: f32 = monitor.width as f32 / monitor.height as f32;
         Self {
             label: monitor.name.clone(),
             app_ctx: ctx,
@@ -158,7 +159,7 @@ impl MonitorWrapper {
             album_path: None,
             slide_interval: Interval::TenMinutes,
             slide_time: 0,
-            selector: OsicSlideSelector::default(),
+            selector: OsicSlideSelector::new(ratio_value),
         }
     }
 
@@ -576,17 +577,18 @@ impl App {
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_secs(interval));
             ctx.request_repaint();
-            println!("Timer Tick!");
         });
     }
 
     fn slide_show_active(&mut self) {
         let c_stamp = utils::get_sys_time_in_secs();
+        println!("Timer is {}", &c_stamp);
         for monitor in &mut self.monitors {
             if monitor.mode == Modes::SlidShow {
-                println!("Timer is {}", &c_stamp);
                 if c_stamp > monitor.slide_time + Interval::seconds(&monitor.slide_interval) {
-                    // println!("SLide !  interval: {}", monitor.slide_interval as u64);
+                    if let Some(p) = monitor.selector.one() {
+                        monitor.set_wallpaper(&p.path);
+                    }
                     monitor.set_slide_time(c_stamp);
                 }
             }
@@ -1024,7 +1026,7 @@ pub fn ui_init() {
 
     if let Ok(monitors) = win32.get_monitor_device_path() {
         let _ = eframe::run_native(
-            "Osic-Windows",
+            "Osic",
             native_options,
             Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx, monitors, Arc::new(win32)))),
         );

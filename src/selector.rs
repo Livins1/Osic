@@ -1,13 +1,7 @@
 use egui::{pos2, Color32, Rect, RichText};
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
-use std::{
-    alloc::System,
-    borrow::{Borrow, BorrowMut},
-    clone,
-    path::PathBuf,
-    time::SystemTime,
-};
+use std::path::PathBuf;
 
 fn is_image_file(path: &PathBuf) -> bool {
     match ImageFormat::from_path(path) {
@@ -25,7 +19,6 @@ pub struct OsicImageWrapper {
 
 impl OsicImageWrapper {
     pub fn new(path: PathBuf, width: u32, height: u32) -> Self {
-        // let ratio = width as f32 / height as f32;
         OsicImageWrapper {
             path,
             width,
@@ -49,6 +42,12 @@ pub struct OsicSlideSelector {
 }
 
 impl OsicSlideSelector {
+    pub fn new(ratio_value: f32) -> Self {
+        let mut s = OsicSlideSelector::default();
+        s.set_ratio_value(ratio_value);
+        return s;
+    }
+
     fn set_shuffle(&mut self, need_shuffle: bool) {
         self.shuffle = need_shuffle;
     }
@@ -57,6 +56,11 @@ impl OsicSlideSelector {
         self.ratio = keep_ratio;
         let _ = self.refresh_ratio_pool();
     }
+
+    fn set_ratio_value(&mut self, ratio_value: f32) {
+        self.ratio_value = ratio_value;
+    }
+
     fn set_ratio_range(&mut self, range: f32) {
         self.ratio_range = range;
         let _ = self.refresh_ratio_pool();
@@ -106,20 +110,22 @@ impl OsicSlideSelector {
         let max = self.ratio_pool.len();
         let mut next = self.wallpaper_index + 1;
 
-        if next > max - 1 {
+        if next + 1 > max {
             next = 0;
         }
 
         self.wallpaper_index = next;
-        let index = self.ratio_pool.get(next).unwrap();
-        return self.pictures.as_ref().unwrap().get(*index).cloned();
+        if let Some(i) = self.ratio_pool.get(next) {
+            return self.pictures.as_ref().unwrap().get(*i).cloned();
+        }
+        return None;
     }
 
     fn sequence_picture(&mut self) -> Option<OsicImageWrapper> {
         let max = self.pictures.as_ref().unwrap().len();
         let mut next = self.wallpaper_index + 1;
 
-        if next > max - 1 {
+        if next + 1 > max {
             next = 0;
         }
 
@@ -128,7 +134,7 @@ impl OsicSlideSelector {
         return self.pictures.as_ref().unwrap().get(next).cloned();
     }
 
-    fn one(&mut self) -> Option<OsicImageWrapper> {
+    pub fn one(&mut self) -> Option<OsicImageWrapper> {
         if let Some(p) = &self.pictures {
             if p.is_empty() {
                 return None;
@@ -156,6 +162,7 @@ impl OsicSlideSelector {
 
     fn ratio_check(image: &OsicImageWrapper, ratio: f32, range: f32) -> bool {
         let image_ratio = image.width as f32 / image.height as f32;
+        println!("Image ratio: {}, ratio_value: {}", image_ratio, ratio);
         image_ratio >= ratio - range && image_ratio <= ratio + range
     }
 
@@ -163,7 +170,6 @@ impl OsicSlideSelector {
         if !self.ratio || self.pictures.is_none() {
             return 0;
         };
-
 
         self.ratio_pool.clear();
 
@@ -208,6 +214,8 @@ impl OsicSlideSelector {
                 };
             }
         };
+        println!("Fetch Folder Pictures length: {}", n);
+
         return n;
     }
 
@@ -247,7 +255,14 @@ impl OsicSlideSelector {
                     // ui.set_height(100.0);
                     ui.with_layout(
                         egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                        |ui| ui.checkbox(&mut self.ratio, "Ratio"),
+                        |ui| {
+                            if ui.checkbox(&mut self.ratio, "Ratio").clicked() {
+                                if self.ratio {
+                                    let len = self.refresh_ratio_pool();
+                                    println!("Refresh Ratio Pool Length: {}", len);
+                                }
+                            }
+                        },
                     );
                     // ui.add_space(25.0);
                 });
@@ -265,25 +280,9 @@ impl OsicSlideSelector {
                                 self.set_ratio_range(self.ratio_range_ui);
                             }
                         }
-                        // if i.drag_released() {
-                        //     if self.ratio_range_ui != self.ratio_range {
-                        //         self.set_ratio_range(self.ratio_range_ui);
-                        //     }
-                        // }
-
-                        // ui.set_height(100.0);
                     });
                 }
             });
-            // if button.clicked() {
-            //     if let Some(p) = rfd::FileDialog::new()
-            //         .add_filter("image", &["png", "jpg", "jpeg"])
-            //         .pick_file()
-            //     {
-            //         // monitor.set_picture(p);
-            //         // self.current_monitor().set_picture(p);
-            //     }
-            // }
         });
     }
 }
