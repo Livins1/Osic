@@ -57,26 +57,6 @@ mod utils;
 //     header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
 // }
 
-fn test_file_find() {
-    let path = "C:\\Users\\Tfios\\Pictures\\Background";
-
-    let p = PathBuf::from(path);
-
-    if let Ok(files) = fs::read_dir(p) {
-        for file in files {
-            let file_entity = file.unwrap();
-            println!("file_name: {:?}", file_entity.file_name());
-            let file_meta = file_entity.metadata().unwrap();
-            println!("file_type : {:?}", file_meta.file_type());
-            println!("file_attr : {:?}", file_meta.file_attributes());
-            println!("file_path: {:?}", file_entity.path());
-            println!(
-                "image_reselution: {:?}",
-                imagesize::size(file_entity.path())
-            );
-        }
-    }
-}
 
 // #[derive(Debug)]
 // pub struct Monitor {
