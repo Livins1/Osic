@@ -3,8 +3,8 @@ use image::{DynamicImage, ImageBuffer, ImageError};
 use serde::{Deserialize, Serialize};
 use std::{
     env,
-    fs::{self, File, OpenOptions},
-    io::{self, BufReader, Write},
+    fs::{self, File},
+    io::{self, BufReader},
     path::PathBuf,
 };
 

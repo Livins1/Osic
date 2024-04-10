@@ -2,20 +2,13 @@
 // if we add new fields, give them default values when deserializing old state
 use crossbeam::channel;
 
-use crossbeam::epoch::Pointable;
-use egui::{
-    util, vec2, Button, Color32, ColorImage, Image, ImageData, Layout, Margin, TextBuffer,
-    TextureOptions, WidgetText,
-};
-use image::flat;
+use egui::{vec2, Color32, TextureOptions};
 use serde::{Deserialize, Serialize};
-use std::borrow::{Borrow, BorrowMut, Cow};
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread::{self, panicking};
+use std::sync::{Arc, RwLock};
+use std::thread::{self};
 use std::time::Duration;
-use windows::Win32::Foundation::NOERROR;
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
@@ -23,8 +16,8 @@ use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 use crate::cache::{OsicMonitorSettings, OsicRecentImage};
 // use crate::data::config::AppConfig;
 // use crate::data::monitor::Monitor;
-use crate::data::{self, monitor};
-use crate::selector::{self, OsicSlideSelector};
+// use crate::data::{self, monitor};
+use crate::selector::OsicSlideSelector;
 use crate::win32::Monitor;
 use crate::win32::Win32API;
 use crate::{cache, utils, win32};
@@ -607,11 +600,9 @@ impl eframe::App for App {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.set_visible(false);
 
-
         for m in self.monitors.clone() {
             let _ = cache::write_monitor_settings(m.into());
         }
-
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.

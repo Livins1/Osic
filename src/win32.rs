@@ -1,4 +1,3 @@
-use windows::Win32::Foundation::{BOOL, FALSE, HWND, LPARAM, TRUE, WPARAM};
 
 use windows::core::{HSTRING, PCWSTR};
 
@@ -18,7 +17,6 @@ use windows::Win32::UI::Shell::DesktopWallpaper;
 use windows::Win32::UI::Shell::IDesktopWallpaper;
 
 use crate::cache::{self, OsicMonitorSettings};
-use crate::ui::Fits;
 use crate::utils;
 
 #[derive(Clone)]
@@ -82,7 +80,6 @@ impl Win32API {
         unsafe {
             let wm = &self.wm;
 
-            // 设备路径数量
             let c = wm.GetMonitorDevicePathCount();
             for i in 0..c.unwrap() {
                 let mut monitor = Monitor::default();

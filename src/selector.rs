@@ -1,4 +1,4 @@
-use egui::{pos2, Color32, Rect, RichText};
+use egui::{ Color32, RichText};
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -162,7 +162,6 @@ impl OsicSlideSelector {
 
     fn ratio_check(image: &OsicImageWrapper, ratio: f32, range: f32) -> bool {
         let image_ratio = image.width as f32 / image.height as f32;
-        println!("Image ratio: {}, ratio_value: {}", image_ratio, ratio);
         image_ratio >= ratio - range && image_ratio <= ratio + range
     }
 
@@ -177,7 +176,7 @@ impl OsicSlideSelector {
             return ps
                 .into_iter()
                 .enumerate()
-                .filter(|(index, p)| {
+                .filter(|(_index, p)| {
                     OsicSlideSelector::ratio_check(p, self.ratio_value, self.ratio_range)
                 })
                 .map(|(index, _)| self.ratio_pool.push(index))
@@ -229,12 +228,10 @@ impl OsicSlideSelector {
             ui.set_width(ui.available_width() * 0.7);
             ui.set_height(25.0);
             ui.add_space(40.0);
-            // let button = ui.add_sized([120.0, 20.0], egui::Button::new("Browse photos"));
 
             ui.columns(3, |cols| {
                 cols[0].vertical_centered_justified(|ui| {
                     ui.set_width(75.0);
-                    // ui.set_height(100.0);
                     ui.with_layout(
                         egui::Layout::centered_and_justified(egui::Direction::TopDown),
                         |ui| {
@@ -248,11 +245,9 @@ impl OsicSlideSelector {
                         },
                     );
 
-                    // ui.add_space(25.0);
                 });
                 cols[1].vertical_centered_justified(|ui| {
                     ui.set_width(75.0);
-                    // ui.set_height(100.0);
                     ui.with_layout(
                         egui::Layout::centered_and_justified(egui::Direction::TopDown),
                         |ui| {
@@ -264,7 +259,6 @@ impl OsicSlideSelector {
                             }
                         },
                     );
-                    // ui.add_space(25.0);
                 });
                 if self.ratio {
                     cols[2].vertical_centered_justified(|ui| {
