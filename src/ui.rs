@@ -21,7 +21,7 @@ use egui::{FontFamily, FontId, RichText, TextStyle};
 use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
 
 use crate::cache::{OsicMonitorSettings, OsicRecentImage};
-use crate::data::config::AppConfig;
+// use crate::data::config::AppConfig;
 // use crate::data::monitor::Monitor;
 use crate::data::{self, monitor};
 use crate::selector::{self, OsicSlideSelector};
@@ -350,7 +350,7 @@ fn configure_text_styles(ctx: &egui::Context) {
 pub struct App {
     // Example stuff:
     label: String,
-    config: AppConfig,
+    // config: AppConfig,
     monitors: Vec<MonitorWrapper>,
     tick: u64,
     tick_interval: u64,
@@ -407,7 +407,7 @@ impl App {
             tick: utils::get_sys_time_in_secs(),
             tick_interval: 10,
             tick_status: false,
-            config: AppConfig::load_from_file(),
+            // config: AppConfig::load_from_file(),
             _tray_start: false,
             _tray_icon: tray_icon,
             _tray_icon_inner: Arc::new(RwLock::new(TrayIconInner {
@@ -607,13 +607,11 @@ impl eframe::App for App {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.set_visible(false);
 
-        self.config.save_to_toml();
 
         for m in self.monitors.clone() {
             let _ = cache::write_monitor_settings(m.into());
         }
 
-        // self._tray_icon_inner.read().unwrap().is_close
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
