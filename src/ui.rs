@@ -1,6 +1,7 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 // if we add new fields, give them default values when deserializing old state
-use crossbeam::channel;
+// use crossbeam::channel;
+use tray_icon::TrayIconEvent;
 
 use egui::{vec2, Color32, TextureOptions};
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,11 @@ use std::thread::{self};
 use std::time::Duration;
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
-use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
+// use trayicon::{MenuBuilder, TrayIcon, TrayIconBuilder};
+use tray_icon::{menu::Menu, TrayIconBuilder};
+
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::cache::{OsicMonitorSettings, OsicRecentImage};
 // use crate::data::config::AppConfig;
@@ -350,35 +355,15 @@ pub struct App {
     tick_status: bool,
 
     selected_monitor: usize,
-    _tray_start: bool,
-    _tray_icon: TrayIcon<TrayMessage>,
-    _tray_icon_inner: Arc<RwLock<TrayIconInner>>,
-}
-struct TrayIconInner {
-    ctx: egui::Context,
-    is_close: bool,
-    is_visible: bool,
-    tray_receiver: channel::Receiver<TrayMessage>,
 }
 
 impl App {
     /// Called once before the first frame.
     pub fn new(
         cc: &eframe::CreationContext<'_>,
-        tray_icon: TrayIcon<TrayMessage>,
-        tray_receiver: channel::Receiver<TrayMessage>,
         monitors: Vec<Monitor>,
         win32: Arc<Win32API>,
     ) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        // if let Some(storage) = cc.storage {
-        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-
-        // }
         configure_text_styles(&cc.egui_ctx);
 
         egui_extras::install_image_loaders(&cc.egui_ctx);
@@ -387,11 +372,15 @@ impl App {
         println!("New App Created!");
         let monitor_wrappers: Vec<MonitorWrapper> = monitors
             .into_iter()
-            .map(|monitor| match monitor.load_from_cache() {
-                Ok(s) => MonitorWrapper::from_cache(monitor, ctx.clone(), win32.clone(), s),
-                Err(_) => MonitorWrapper::new(monitor, ctx.clone(), win32.clone()),
-            })
+            .map(|monitor| MonitorWrapper::new(monitor, ctx.clone(), win32.clone()))
             .collect();
+
+        TrayIconEvent::set_event_handler(Some(move |e| {
+            ctx.request_repaint();
+            println!("e: {:?}", e);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.request_repaint();
+        }));
 
         Self {
             label: "Label Stuff".to_string(),
@@ -401,31 +390,9 @@ impl App {
             tick_interval: 10,
             tick_status: false,
             // config: AppConfig::load_from_file(),
-            _tray_start: false,
-            _tray_icon: tray_icon,
-            _tray_icon_inner: Arc::new(RwLock::new(TrayIconInner {
-                ctx: ctx,
-                is_close: false,
-                is_visible: true,
-                tray_receiver: tray_receiver,
-            })),
         }
     }
-    fn set_visible(&mut self, visible: bool) {
-        // self._tray_icon_inner.read().unwrap().is_visible = visible;
-        self._tray_icon_inner.write().unwrap().is_visible = visible;
-        // self.is_visible = visible
-    }
-    fn set_close(&mut self, close: bool) {
-        self._tray_icon_inner.write().unwrap().is_close = close;
-        // self.is_close = close
-    }
-    fn get_visible(&self) -> bool {
-        self._tray_icon_inner.read().unwrap().is_visible
-    }
-    fn get_close(&self) -> bool {
-        self._tray_icon_inner.read().unwrap().is_close
-    }
+
     fn current_monitor(&mut self) -> &mut MonitorWrapper {
         return self.monitors.get_mut(self.selected_monitor).unwrap();
     }
@@ -434,69 +401,10 @@ impl App {
     //     return self.monitors.get(self.selected_monitor).unwrap();
     // }
 
-    fn tray_monitor(&mut self, ctx: &egui::Context) {
-        let tray = self._tray_icon_inner.clone();
-        let v_id = ctx.viewport_id();
-        thread::spawn(move || {
-            let receiver = tray.read().unwrap().tray_receiver.clone();
-            while let Ok(message) = receiver.recv() {
-                // let mut lock = this_share.lock().unwrap();
-                let mut tray = tray.write().unwrap();
-                match message {
-                    TrayMessage::SettingsShow => {
-                        tray.is_visible = true;
-                        tray.ctx
-                            .send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        // tray.ctx
-                        //     .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                        // tray.ctx.send_viewport_cmd_to(v_id, egui::ViewportCommand::Minimized(false));
-
-                        tray.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                        tray.ctx.request_repaint();
-                    }
-                    TrayMessage::Exit => {
-                        // tray.is_close = true;
-                        // ctx.send_viewport_cmd_to(v_id, egui::ViewportCommand::Close);
-                        // ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        // ctx.request_repaint_of(v_id);
-                        tray.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        tray.ctx.request_repaint();
-                        println!("exit!");
-                    }
-                    TrayMessage::OnIconDoubleClick => {
-                        tray.is_visible = !tray.is_visible;
-                        println!("DoubleClick: {:?}", tray.is_visible);
-                        // ctx.send_viewport_cmd_to(
-                        //     v_id,
-                        //     egui::ViewportCommand::Maximized(tray.is_visible),
-                        // );
-                        // tray.ctx
-                        //     .send_viewport_cmd(egui::ViewportCommand::Visible(tray.is_visible));
-
-                        if tray.is_visible {
-                            // tray.ctx
-                            //     .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                            tray.ctx
-                                .send_viewport_cmd(egui::ViewportCommand::Visible(tray.is_visible));
-                        } else {
-                            // tray.ctx
-                            //     .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                            tray.ctx
-                                .send_viewport_cmd(egui::ViewportCommand::Visible(tray.is_visible));
-                        }
-                        tray.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                        tray.ctx.request_repaint();
-
-                        // ctx.request_repaint_of(v_id);
-                        // ctx.request_repaint();
-                    }
-                    TrayMessage::OnIconClick => {
-
-                        // ctx.send_viewport_cmd(egui::ViewportCommand::);
-                    }
-                }
-            }
-        });
+    fn tray_monitor(&mut self, ctx: egui::Context) {
+        if let Ok(event) = TrayIconEvent::receiver().try_recv() {
+            println!("tray event: {event:?}");
+        }
     }
 
     // fn tray_message(&mut self, _frame: &mut eframe::Frame) {
@@ -597,22 +505,17 @@ impl eframe::App for App {
 
     //     // self.is_close
     // }
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        self.set_visible(false);
 
-        for m in self.monitors.clone() {
-            let _ = cache::write_monitor_settings(m.into());
-        }
+    fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
+        print!("On Exit");
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if !self._tray_start {
-            println!("Start Tray Event Monitor");
-            self.tray_monitor(ctx);
-            self._tray_start = true;
-        }
+        self.tray_monitor(ctx.clone());
+        println!("Paint");
+
         let update_tick = utils::get_sys_time_in_secs();
 
         if !self.tick_status {
@@ -625,6 +528,11 @@ impl eframe::App for App {
             self.slide_show_active();
             // self.reapint_tick(ctx);
         };
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
 
         egui::TopBottomPanel::top("TopPanel")
             .show_separator_line(true)
@@ -687,6 +595,9 @@ impl eframe::App for App {
 
                             if cencel_button.clicked() {
                                 println!("Minimize");
+                                for m in self.monitors.clone() {
+                                    let _ = cache::write_monitor_settings(m.into());
+                                }
                             }
                         });
                     });
@@ -980,7 +891,7 @@ impl eframe::App for App {
     }
 }
 
-pub fn ui_init() {
+pub async fn ui_init() {
     // let native_options = eframe::NativeOptions::default();
     let native_options = eframe::NativeOptions {
         // persist_window:true,
@@ -993,21 +904,16 @@ pub fn ui_init() {
         ..Default::default()
     };
 
-    let (tray_tx, tray_rx) = channel::unbounded();
+    // let (tray_tx, tray_rx) = channel::unbounded();
+    let (tray_tx, tray_rx) = mpsc::unbounded_channel();
 
     let icon = include_bytes!("../resource/icon/icon3.ico");
 
+    let tray_menu = Menu::new();
     let tray_icon = TrayIconBuilder::new()
-        .sender_crossbeam(tray_tx)
-        .icon_from_buffer(icon)
-        .tooltip("Osic")
-        .on_click(TrayMessage::OnIconClick)
-        .on_double_click(TrayMessage::OnIconDoubleClick)
-        .menu(
-            MenuBuilder::new()
-                .item("Settings", TrayMessage::SettingsShow)
-                .item("Exit", TrayMessage::Exit),
-        )
+        .with_menu(Box::new(tray_menu))
+        .with_tooltip("Osic")
+        .with_icon(tray_icon::Icon::from_path("./resource/icon/icon3.ico", None).unwrap())
         .build()
         .unwrap();
 
@@ -1017,7 +923,21 @@ pub fn ui_init() {
         let _ = eframe::run_native(
             "Osic",
             native_options,
-            Box::new(|cc| Box::new(App::new(cc, tray_icon, tray_rx, monitors, Arc::new(win32)))),
+            Box::new(|cc| {
+                let frame = cc.egui_ctx.clone();
+                tokio::spawn(async move {
+                    // sleep async 1 sec
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    tray_tx
+                        .send("Mr Arthur after 3 sec...".to_string())
+                        .expect("Failed to send message");
+                    println!("Repaint send!");
+                    frame.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    frame.request_repaint();
+                });
+
+                Box::new(App::new(cc, monitors, Arc::new(win32)))
+            }),
         );
     }
 }

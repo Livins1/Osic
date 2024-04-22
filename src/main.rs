@@ -1,13 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod ui;
 mod cache;
-mod win32;
 mod selector;
-
+mod ui;
+mod win32;
 
 mod utils;
 
-fn main() {
-    ui::ui_init();
+#[tokio::main]
+async fn main() {
+    ui::ui_init().await;
 }
