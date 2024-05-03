@@ -900,6 +900,8 @@ pub async fn ui_init() {
             .with_max_inner_size([580.0, 480.0])
             .with_resizable(true)
             .with_maximize_button(false),
+        persist_window: true,
+        renderer: eframe::Renderer::Wgpu,
 
         ..Default::default()
     };
@@ -932,7 +934,11 @@ pub async fn ui_init() {
                         .send("Mr Arthur after 3 sec...".to_string())
                         .expect("Failed to send message");
                     println!("Repaint send!");
-                    frame.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    frame.request_repaint();
+                    let _ = frame.requested_repaint_last_frame();
+
+                    frame.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    // frame.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     frame.request_repaint();
                 });
 
