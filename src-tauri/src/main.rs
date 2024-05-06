@@ -3,13 +3,13 @@
 
 use tauri::{Event, Manager, SystemTray, SystemTrayEvent, WindowEvent};
 
+mod core;
 mod tray;
 
-fn main() {
-    // tauri::Builder::default()
-    //     .run(tauri::generate_context!())
-    //     .expect("error while running tauri application");
+use core::display;
+use core::display::DisplayState;
 
+fn main() {
     let mut builder = tauri::Builder::default();
 
     builder = builder
@@ -25,7 +25,7 @@ fn main() {
                 window.show().unwrap();
                 window.set_focus().unwrap();
             }
-            SystemTrayEvent::MenuItemClick { tray_id, id, .. } => match id.as_str() {
+            SystemTrayEvent::MenuItemClick { tray_id: _, id, .. } => match id.as_str() {
                 "quit" => {
                     std::process::exit(0);
                 }
@@ -35,6 +35,7 @@ fn main() {
                     window.show().unwrap();
                     window.set_focus().unwrap();
                 }
+                _ => {}
             },
             _ => {}
         })
@@ -47,6 +48,8 @@ fn main() {
         });
 
     builder
+        .manage(DisplayState::new())
+        .invoke_handler(tauri::generate_handler![core::display::display_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

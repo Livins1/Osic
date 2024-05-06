@@ -1,14 +1,34 @@
-import { component$ } from "@builder.io/qwik";
+import { component$, useSignal, $, useTask$, useVisibleTask$ } from "@builder.io/qwik";
 import type { DocumentHead } from "@builder.io/qwik-city";
+import { isServer } from '@builder.io/qwik/build'
 
 import Counter from "../components/starter/counter/counter";
 import Hero from "../components/starter/hero/hero";
 import Infobox from "../components/starter/infobox/infobox";
 import Starter from "../components/starter/next-steps/next-steps";
 
+import { invoke } from "@tauri-apps/api/tauri";
+
+
 export default component$(() => {
+  const displayInfo = useSignal({})
+
+  // const fetchDisplay = $(async () => {
+  //   displayInfo.value = await invoke("display_info")
+  // })
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(async () => {
+    displayInfo.value = await invoke("display_info")
+    console.log(displayInfo.value)
+  })
+
   return (
     <>
+      <div>
+        {/* <button onClick$={() => fetchDisplay()}>Greet</button> */}
+        {/* <p>{displayInfo.value}</p> */}
+      </div>
       {/* <Hero /> */}
       {/* <Starter /> */}
 
