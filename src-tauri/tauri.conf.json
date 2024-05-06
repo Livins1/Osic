@@ -10,6 +10,9 @@
     "version": "0.1.0"
   },
   "tauri": {
+    "systemTray": {
+      "iconPath": "icons/icon.png"
+    },
     "allowlist": {
       "all": false
     },
@@ -55,10 +58,10 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
-        "resizable": true,
-        "title": "osic",
-        "width": 800
+        "height": 500,
+        "resizable": false,
+        "title": "Osic",
+        "width": 400
       }
     ]
   }
