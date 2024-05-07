@@ -27,6 +27,7 @@ impl OsicImageWrapper {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct OsicSlideSelector {
     pub path: PathBuf,
     pub shuffle: bool,

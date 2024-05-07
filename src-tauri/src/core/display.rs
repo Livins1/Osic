@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::{collections::VecDeque, path::PathBuf};
-use tauri::{command, State, Window};
+use tauri::{command, InvokePayload, PageLoadPayload, State, Window};
 
 use super::{cache::OsicRecentImage, selector::OsicSlideSelector};
 
@@ -93,6 +93,7 @@ impl Interval {
 }
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Monitor {
     pub name: String,
     pub device_id: String,
@@ -105,6 +106,7 @@ pub struct Monitor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MonitorWrapper {
     meta: Monitor,
     pub device_id: String,

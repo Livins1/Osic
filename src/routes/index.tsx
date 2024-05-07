@@ -1,17 +1,24 @@
-import { component$, useSignal, $, useTask$, useVisibleTask$ } from "@builder.io/qwik";
+import { component$, useSignal, $, useTask$, useVisibleTask$, useStore } from "@builder.io/qwik";
 import type { DocumentHead } from "@builder.io/qwik-city";
-import { isServer } from '@builder.io/qwik/build'
+// import { isServer } from '@builder.io/qwik/build'
 
-import Counter from "../components/starter/counter/counter";
-import Hero from "../components/starter/hero/hero";
-import Infobox from "../components/starter/infobox/infobox";
-import Starter from "../components/starter/next-steps/next-steps";
 
 import { invoke } from "@tauri-apps/api/tauri";
+import { NODATA } from "dns";
+import { AppState, Display } from "~/cmd";
 
 
 export default component$(() => {
-  const displayInfo = useSignal({})
+
+
+  // const displayInfo = useSignal({})
+  const state = useStore<AppState>({
+    displayList: [],
+    displayItems: []
+  })
+
+
+
 
   // const fetchDisplay = $(async () => {
   //   displayInfo.value = await invoke("display_info")
@@ -19,8 +26,13 @@ export default component$(() => {
 
   // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(async () => {
-    displayInfo.value = await invoke("display_info")
-    console.log(displayInfo.value)
+    const res: Display[] = await invoke("display_info")
+    state.displayList = res
+    const items = res.map((value, index) => {
+      return { index: index, name: value.meta.name, deviceId: value.deviceId }
+    })
+    state.displayItems = items
+    console.log(state)
   })
 
   return (
