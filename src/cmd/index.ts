@@ -33,9 +33,9 @@ export type Display = {
 
 
 export type DisplayItems = {
-    index: number,
-    name: string,
-    deviceId: string,
+    id: number,
+    label: string,
+    value: string,
 }
 
 export type AppState = {

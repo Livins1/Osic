@@ -1,4 +1,4 @@
-import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
+import { component$ } from "@builder.io/qwik";
 import {
   QwikCityProvider,
   RouterOutlet,
@@ -17,6 +17,7 @@ export default component$(() => {
    */
 
 
+  // https://tailwindui.com/components/application-ui/elements/dropdowns
 
 
   return (
