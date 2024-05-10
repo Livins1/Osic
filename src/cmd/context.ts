@@ -3,4 +3,4 @@ import type { AppState } from ".";
 
 
 
-export const AppContext = createContextId<AppState>('ctx.app');
+export const AppContextId = createContextId<AppState>('ctx.app');

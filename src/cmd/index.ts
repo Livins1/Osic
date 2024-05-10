@@ -1,4 +1,6 @@
 
+import type { Signal } from "@builder.io/qwik"
+
 export type DisplayMeta = {
     name: string,
     deviceId: string,

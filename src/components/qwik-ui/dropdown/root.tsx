@@ -118,6 +118,9 @@ export const DropdwonImpl = component$((props: DropdownProps & InternalSelectPro
       }
 
     }
+
+    context.currDisplayValueSig.value = displayValues;
+
     // sync the user's given signal for the display value
     if (bindDisplayTextSig) {
       bindDisplayTextSig.value = displayValues[0];

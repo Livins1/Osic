@@ -1,4 +1,4 @@
-import type {  JSXNode, Component } from '@builder.io/qwik';
+import type { JSXNode, Component } from '@builder.io/qwik';
 import { DropdownLabel as InternalDropdownLabel } from "./label";
 import { DropdownItemLabel as InternalItemLabel } from "./item-label";
 import { DropdownItem as InternalItem } from "./item";
@@ -98,6 +98,7 @@ export const DropdownRoot: Component<DropdownProps & InlineCompProps> = (props: 
                     // minus one because it is incremented already in SelectOption
                     valuePropIndex = currItemIndex;
                 }
+
 
                 const isString = typeof child.props.children === 'string';
 

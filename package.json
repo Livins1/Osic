@@ -47,6 +47,8 @@
     "vite-tsconfig-paths": "^4.2.1"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.6.5",
+    "@oddbird/popover-polyfill": "^0.4.3",
     "@tauri-apps/api": "^1.5.4"
   }
 }

@@ -34,11 +34,11 @@ export function useSelect() {
             if (index === null) return;
             const currItem = context.itemsMapSig.value.get(index)
             const enableIndex = currItem && currItem.disabled ? await getNextEnabledItemIndex$(index) : index
-            if (action != 'add') {
+            if (action === 'add') {
                 context.selectedIndexSetSig.value = new Set([index])
             }
 
-            if (action == 'toggle') {
+            if (action === 'toggle') {
                 if (context.selectedIndexSetSig.value.has(index)) {
                     context.selectedIndexSetSig.value = new Set(
                         [...context.selectedIndexSetSig.value].filter((selectdIndex) => selectdIndex !== enableIndex)
@@ -51,7 +51,7 @@ export function useSelect() {
                 }
             }
 
-            if (action == 'remove') {
+            if (action === 'remove') {
                 context.selectedIndexSetSig.value = new Set(
                     [...context.selectedIndexSetSig.value].filter(
                         (selectedIndex) => selectedIndex !== index,

@@ -1,10 +1,10 @@
 import { component$, useContext } from "@builder.io/qwik";
-import { AppContext } from "~/cmd/context";
+import { AppContextId } from "~/cmd/context";
 
 
 export const HeadRow = component$(() => {
 
-    const state = useContext(AppContext)
+    const state = useContext(AppContextId)
 
     return (
 
