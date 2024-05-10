@@ -34,11 +34,9 @@ export default component$(() => {
 
 
   return (
-    <>
-      <div>
-        <DisplaySelector></DisplaySelector>
-      </div>
-    </>
+    <div class="">
+      <DisplaySelector></DisplaySelector>
+    </div>
   );
 });
 

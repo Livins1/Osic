@@ -23,14 +23,13 @@ export const useServerTimeLoader = routeLoader$(() => {
 });
 
 export default component$(() => {
-  useStyles$(styles);
+  // useStyles$(styles);
   return (
-    <>
-      {/* <Header /> */}
+    <div>
       <main>
         <Slot />
       </main>
-      {/* <Footer /> */}
-    </>
+    </div>
+
   );
 });

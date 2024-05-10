@@ -16,21 +16,22 @@ export const DisplaySelector = component$(() => {
 
 
     return (
-        <Dropdown.Root bind:value={selected}>
-            <Dropdown.Trigger class="select-trigger">
-                <Dropdown.DisplayText placeholder="Dropdown an option" />
-            </Dropdown.Trigger>
-            <Dropdown.Popover class="select-popover">
-                <Dropdown.ListBox class="select-listbox">
-                    {items.value.map((item, index) => (
-                        <Dropdown.Item key={index}>
-                            <Dropdown.ItemLabel>{item.label.toString()}</Dropdown.ItemLabel>
-                        </Dropdown.Item>
-                    ))}
-                </Dropdown.ListBox>
-            </Dropdown.Popover>
-        </Dropdown.Root >
-
+        <div class="">
+            <Dropdown.Root bind:value={selected} class=" bg-white/5  w-full align-middle block  rounded-lg border-none text-sm/6 text-white ">
+                <Dropdown.Trigger class="select-trigger">
+                    <Dropdown.DisplayText class="relative w-full text-left px-3" placeholder="Dropdown an option" />
+                </Dropdown.Trigger>
+                <Dropdown.Popover arrow={true} class="select-popover w-full  bg-white/5  mt-1 border-none text-sm/6 text-white rounded-lg border-nonetext-sm/6 text-center " >
+                    <Dropdown.ListBox class="select-listbox" >
+                        {items.value.map((item, index) => (
+                            <Dropdown.Item key={index} class="text-left px-3 my-2">
+                                <Dropdown.ItemLabel class="text-left" >{item.label.toString()}</Dropdown.ItemLabel>
+                            </Dropdown.Item>
+                        ))}
+                    </Dropdown.ListBox>
+                </Dropdown.Popover>
+            </Dropdown.Root >
+        </div >
     )
 
 })

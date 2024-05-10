@@ -1,10 +1,11 @@
-/* :root {
-    --select-width: 30%;
+:root {
+    --select-width: 100%;
+    max-width: 100%;
 }
 
 .select {
     min-width: var(--select-width);
-} */
+}
 
 .select-trigger {
     width: 100%;
@@ -20,25 +21,27 @@
 }
 
 .select-popover {
-    width: 100%;
+    /* width: 95%; */
+    /* width: auto; */
     max-width: var(--select-width);
+    /* max-width: 100vh; */
 }
 
 .select-listbox {
-    width: 100%;
-    background-color: hsl(var(--background));
-    padding: 0.5rem;
-    border: 2px dotted hsla(var(--foreground) / 0.6);
-    border-radius: calc(var(--border-radius) / 2);
-    max-width: var(--select-width);
-    color: hsl(var(--foreground));
+    /* width: 100%; */
+    /* background-color: hsl(var(--background)); */
+    /* padding: 0.5rem; */
+    /* border: 2px dotted hsla(var(--foreground) / 0.6); */
+    /* border-radius: calc(var(--border-radius) / 2); */
+    /* max-width: var(--select-width); */
+    /* color: hsl(var(--foreground)); */
 }
 
-.select-item {
+/* .select-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-}
+} */
 
 .select-item span {
     user-select: none;

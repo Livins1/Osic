@@ -9,8 +9,10 @@ import {
     offset as _offset,
     flip as _flip,
     shift as _shift,
+    size as _size,
     hide as _hide,
     arrow as _arrow,
+
     type Placement,
 } from '@floating-ui/dom';
 import { popoverContextId } from './context';
@@ -35,6 +37,15 @@ export const FloatingPopover = component$((props: PropsOf<'div'>) => {
             const middleware = [
                 _offset(context.gutter),
                 _hide({ strategy: context.hide }),
+                _size({
+                    apply({ rects, elements }) {
+                        Object.assign(elements.floating.style
+                            , {
+                                width: `${rects.reference.width}px`,
+                            }
+                        )
+                    }
+                }),
                 context.flip && _flip(),
                 context.shift && _shift(),
                 context.arrow &&

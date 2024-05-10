@@ -28,8 +28,16 @@ export default component$(() => {
         <RouterHead />
         <ServiceWorkerRegister />
       </head>
-      <body lang="en">
-        <RouterOutlet />
+      <body lang="en" >
+        <div class="bg-black h-full" style="overflow:hidden: padding-right: 0px;">
+          <div class="relative flex flex-col bg-white/5">
+            <div class="absolute inset-[33%] block rounded-full bg-white/20 blur-2xl">
+            </div>
+            <div class="relative flex min-h-screen w-full flex-col p-3 ">
+              <RouterOutlet />
+            </div>
+          </div>
+        </div>
       </body>
     </QwikCityProvider>
   );

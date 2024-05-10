@@ -58,4 +58,7 @@ body {
   padding: 0;
   margin: 0;
   line-height: inherit;
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 100vh;
 }
