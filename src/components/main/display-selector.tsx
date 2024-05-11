@@ -1,8 +1,7 @@
-import { useComputed$, component$, useContext, useStyles$, useSignal, $ } from "@builder.io/qwik";
+import { useComputed$, component$, useContext, useStyles$, useSignal, $, useVisibleTask$ } from "@builder.io/qwik";
 import { Dropdown } from "../qwik-ui";
 
 import { AppContextId } from "~/cmd/context";
-
 
 
 export const DisplaySelector = component$(() => {
@@ -13,6 +12,12 @@ export const DisplaySelector = component$(() => {
 
     const items = useComputed$(() => state.displayItems)
     const selected = useSignal<string>('')
+
+
+    useVisibleTask$(({ track }) => {
+        track(() => items.value)
+        selected.value = items.value[0]?.label
+    })
 
 
     return (

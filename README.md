@@ -16,3 +16,9 @@ windows support only.
 ## Useful
 https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-idesktopwallpaper-getmonitorrect
 https://github.com/Roughsketch/imagesize
+
+## Static Site Generator (Node.js)
+
+```shell
+npm run build.server
+```

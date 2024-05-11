@@ -1,4 +1,4 @@
-import { type Signal, component$, useVisibleTask$, useStore, useContextProvider, useTask$, useComputed$ } from "@builder.io/qwik";
+import { component$, useStore, useContextProvider, useVisibleTask$, $ } from "@builder.io/qwik";
 import type { DocumentHead } from "@builder.io/qwik-city";
 
 
@@ -9,8 +9,6 @@ import { DisplaySelector } from "~/components/main/display-selector";
 
 
 
-
-
 export default component$(() => {
 
   const state = useStore<AppState>({
@@ -18,18 +16,19 @@ export default component$(() => {
     displayItems: []
   })
 
-
-
   useContextProvider(AppContextId, state);
 
-  // eslint-disable-next-line qwik/no-use-visible-task
-  useVisibleTask$(async () => {
+  const getItemList = $(async () => {
     const res: Display[] = await invoke("display_info")
     state.displayList = [...res]
     state.displayItems = [...res.map((value, index) => {
       return { id: index, label: value.meta.name, value: value.deviceId }
     })]
+  })
 
+
+  useVisibleTask$(async () => {
+    getItemList()
   })
 
 

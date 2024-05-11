@@ -38,20 +38,14 @@ export const DropdownTrigger = component$<DropdownTriggerProps>((props) => {
         }
     })
 
-
-
-    const handleKeyDown$ = $(async (e: KeyboardEvent) => {
-
+    const handleKeyDown$ = $(async () => {
         if (!context.itemsMapSig.value) return
-
-
         /** When initially opening the listbox, we want to grab the first enabled option index */
         if (context.highlightedIndexSig.value === null) {
             context.highlightedIndexSig.value = await getNextEnabledItemIndex$(-1);
             return;
         }
     })
-
 
     return (
         <button
