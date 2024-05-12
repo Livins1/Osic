@@ -43,6 +43,7 @@ export type DisplayItems = {
 export type AppState = {
     displayList: Display[],
     displayItems: DisplayItems[],
+    selectdDisplayIndex: number,
 }
 
 

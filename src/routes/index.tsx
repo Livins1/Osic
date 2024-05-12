@@ -5,7 +5,7 @@ import type { DocumentHead } from "@builder.io/qwik-city";
 import { invoke } from "@tauri-apps/api/tauri";
 import type { AppState, Display } from "~/cmd";
 import { AppContextId } from "~/cmd/context";
-import { DisplaySelector } from "~/components/main/display-selector";
+import { DisplaySelector } from "~/components/main/display/display-selector";
 
 
 
@@ -13,7 +13,8 @@ export default component$(() => {
 
   const state = useStore<AppState>({
     displayList: [],
-    displayItems: []
+    displayItems: [],
+    selectdDisplayIndex: 0,
   })
 
   useContextProvider(AppContextId, state);

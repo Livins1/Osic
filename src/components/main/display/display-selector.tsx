@@ -1,5 +1,5 @@
 import { useComputed$, component$, useContext, useStyles$, useSignal, $, useVisibleTask$ } from "@builder.io/qwik";
-import { Dropdown } from "../qwik-ui";
+import { Dropdown } from "../../qwik-ui";
 
 import { AppContextId } from "~/cmd/context";
 
